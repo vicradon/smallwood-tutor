@@ -26,6 +26,8 @@ h1{font:600 clamp(24px,3.5vw,34px)/1.15 var(--display);margin:0}
 .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
 .pill[data-s="ok"] .dot{background:var(--ok)} .pill[data-s="warn"] .dot{background:var(--warn)} .pill[data-s="bad"] .dot{background:var(--bad)}
 button,.filebtn,select{font:500 14px var(--body);padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+select{background:var(--panel)}
+select option{background:var(--panel);color:var(--fg)}
 button.primary,.filebtn{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled{opacity:.45;cursor:default}
 button:focus-visible,.filebtn:focus-within,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}

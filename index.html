@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smallwood Practice Tutor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control bar, then the score on a paper sheet as the main surface, live stats under it */
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --fg:#1b1e24; --muted:#6a707c; --line:#d9dce2;
+  --accent:#c2410c; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --paper:#fffdf8;
+  --display:"Fraunces",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#14161a; --panel:#1d2026; --fg:#e8eaee; --muted:#9097a3; --line:#2f333b;
+  --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --paper:#f4f1ea; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
+main{max-width:1200px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
+h1{font:600 clamp(24px,3.5vw,34px)/1.15 var(--display);margin:0}
+.sub{color:var(--muted);margin:2px 0 0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.pill{display:inline-flex;align-items:center;gap:8px;font-weight:500;padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:14px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.pill[data-s="ok"] .dot{background:var(--ok)} .pill[data-s="warn"] .dot{background:var(--warn)} .pill[data-s="bad"] .dot{background:var(--bad)}
+button,.filebtn,select{font:500 14px var(--body);padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+button.primary,.filebtn{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,.filebtn:focus-within,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.filebtn input{position:absolute;opacity:0;width:1px;height:1px}
+.spacer{flex:1}
+label.inline{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px}
+.prompt{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
+.prompt .k{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#expect{font:500 26px var(--mono)}
+#feedback{font:500 15px var(--mono);min-height:1.5em}
+#feedback.bad{color:var(--bad)} #feedback.ok{color:var(--ok)}
+.sheet{background:var(--paper);border-radius:8px;padding:8px;overflow-x:auto;min-height:220px;color:#1b1e24}
+.sheet .empty{color:#6a707c;padding:60px 16px;text-align:center}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+.stat .v{font:500 24px var(--mono);font-variant-numeric:tabular-nums}
+.stat .l{color:var(--muted);font-size:12px}
+.keys{margin:10px 0 0;color:var(--muted);font-size:13px}
+kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--fg)}
+.flash{animation:fl .35s}
+@keyframes fl{0%{box-shadow:0 0 0 3px var(--bad)}100%{box-shadow:0 0 0 0 transparent}}
+@media (prefers-reduced-motion:reduce){.flash{animation:none}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Smallwood Practice Tutor</h1>
+    <p class="sub">Wait mode: the cursor only moves on when you play the right note or chord.</p>
+  </header>
+
+  <section class="panel bar" aria-label="Setup">
+    <span class="pill" id="pill" data-s="idle"><span class="dot"></span><span id="pillText">Keyboard not connected</span></span>
+    <button id="connect">Connect MIDI</button>
+    <label class="inline" for="lib">Exercise
+      <select id="lib"><option value="">Choose…</option></select>
+    </label>
+    <label class="filebtn">Load file (.mxl / .musicxml)<input type="file" id="file" accept=".mxl,.musicxml,.xml"></label>
+    <span class="spacer"></span>
+    <label class="inline" for="hand">Hands
+      <select id="hand"><option value="both">Both</option><option value="rh">Right only</option><option value="lh">Left only</option></select>
+    </label>
+    <button id="restart" disabled>Restart</button>
+    <button id="skip" disabled>Skip step</button>
+  </section>
+
+  <section class="panel" aria-label="Prompt">
+    <div class="prompt">
+      <span class="k">Play</span><span id="expect">--</span>
+      <span id="feedback" aria-live="polite"></span>
+    </div>
+    <p class="keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> previous or next bar &nbsp;·&nbsp; <kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> one note step &nbsp;·&nbsp; <kbd>Home</kbd> back to the start</p>
+  </section>
+
+  <section class="panel" id="sheetPanel" aria-label="Score">
+    <div class="sheet" id="sheet"><div class="empty">Pick an exercise above, or load a MusicXML file.</div></div>
+  </section>
+
+  <section class="panel stats" aria-label="Progress">
+    <div class="stat"><div class="v" id="sBar">0 / 0</div><div class="l">Bar</div></div>
+    <div class="stat"><div class="v" id="sStep">0 / 0</div><div class="l">Step</div></div>
+    <div class="stat"><div class="v" id="sRight">0</div><div class="l">Correct steps</div></div>
+    <div class="stat"><div class="v" id="sWrong">0</div><div class="l">Wrong notes</div></div>
+    <div class="stat"><div class="v" id="sAcc">--</div><div class="l">Accuracy</div></div>
+    <div class="stat"><div class="v" id="sTime">0:00</div><div class="l">Time</div></div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@2.1.3/build/opensheetmusicdisplay.min.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+const NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const nn=m=>NAMES[m%12]+(Math.floor(m/12)-1);
+
+let osmd=null, loaded=false;
+let steps=[], idx=0;          // steps: [{midis:Set, total}]
+let got=new Set();            // pitches already played in current step
+let right=0, wrong=0, stepClean=true, startT=null, timer=null;
+
+/* ---------- MIDI ---------- */
+$("connect").onclick=async()=>{
+  if(!navigator.requestMIDIAccess){setPill("bad","No Web MIDI in this browser");return;}
+  try{
+    const a=await navigator.requestMIDIAccess();
+    const hook=()=>{let n=0;a.inputs.forEach(i=>{n++;i.onmidimessage=onMidi;});
+      n?setPill("ok","Keyboard connected"):setPill("warn","No keyboard found");};
+    hook(); a.onstatechange=hook;
+  }catch(e){setPill("bad","MIDI access refused");}
+};
+function setPill(s,t){$("pill").dataset.s=s;$("pillText").textContent=t;}
+function onMidi(e){
+  const [st,n,v]=e.data;
+  if((st&0xf0)===0x90&&v>0) noteOn(n);
+}
+
+/* ---------- Score ---------- */
+const LIBRARY=[{title:"Favourite Reel (p. 10)",file:"scores/favourite-reel.mxl"}];
+LIBRARY.forEach(x=>{const o=document.createElement("option");o.value=x.file;o.textContent=x.title;$("lib").appendChild(o);});
+$("lib").onchange=async e=>{ e.target.blur();
+  if(!e.target.value) return;
+  try{ const r=await fetch(e.target.value); if(!r.ok) throw new Error(r.status); await loadScore(await r.blob()); }
+  catch(err){ $("sheet").innerHTML='<div class="empty">Could not load that exercise. Check your connection and try again.</div>'; }
+};
+$("file").onchange=e=>{ const f=e.target.files[0]; if(f){ $("lib").value=""; loadScore(f); } };
+async function loadScore(f){
+  $("sheet").innerHTML="";
+  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:true,followCursor:true,backend:"svg"});
+  try{
+    await osmd.load(f);
+    osmd.render();
+    loaded=true; buildSteps(); restart();
+  }catch(err){
+    $("sheet").innerHTML='<div class="empty">Could not read that file. Re-export it from Audiveris as MusicXML (.mxl) and try again.</div>';
+    console.error(err);
+  }
+}
+$("hand").onchange=()=>{ if(loaded){buildSteps();restart();} };
+$("restart").onclick=restart;
+$("skip").onclick=()=>{ stepClean=false; advance(); };
+
+function wanted(note){
+  if(note.isRest()||note.IsGraceNote) return false;
+  const tie=note.NoteTie; if(tie&&tie.StartNote!==note) return false; // held-over tied note
+  const staff=note.ParentStaff?note.ParentStaff.idInMusicSheet:0;
+  const h=$("hand").value;
+  if(h==="rh"&&staff!==0) return false;
+  if(h==="lh"&&staff!==1) return false;
+  return true;
+}
+// Walk the whole score once, recording which cursor positions need input.
+function buildSteps(){
+  const c=osmd.cursor; c.reset(); steps=[]; let pos=0;
+  while(!c.Iterator.EndReached){
+    const midis=new Set(c.NotesUnderCursor().filter(wanted).map(n=>n.halfTone+12));
+    if(midis.size) steps.push({pos,midis,bar:c.Iterator.CurrentMeasureIndex});
+    c.next(); pos++;
+  }
+}
+let curPos=0;
+function moveCursorTo(pos){
+  const c=osmd.cursor; c.reset(); for(let i=0;i<pos;i++) c.next(); curPos=pos; c.show();
+}
+function restart(){
+  if(!loaded) return;
+  idx=0; right=0; wrong=0; got.clear(); stepClean=true; startT=null; clearInterval(timer); $("sTime").textContent="0:00";
+  $("restart").disabled=false; $("skip").disabled=!steps.length;
+  if(!steps.length){ $("expect").textContent="--"; say("No notes found for this hand setting.","bad"); return; }
+  moveCursorTo(steps[0].pos); showStep(); say("","");
+}
+function showStep(){
+  const s=steps[idx];
+  $("expect").textContent=[...s.midis].sort((a,b)=>b-a).map(m=>got.has(m)?`(${nn(m)})`:nn(m)).join(" + ");
+  $("sStep").textContent=`${idx+1} / ${steps.length}`;
+  $("sBar").textContent=`${s.bar+1} / ${nBars()}`;
+  $("sRight").textContent=right; $("sWrong").textContent=wrong;
+  const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
+}
+function noteOn(m){
+  if(!loaded||idx>=steps.length) return;
+  if(!startT){startT=Date.now();timer=setInterval(tick,500);}
+  const s=steps[idx];
+  if(s.midis.has(m)){
+    got.add(m);
+    if([...s.midis].every(x=>got.has(x))){ if(stepClean) right++; advance(); }
+    else showStep();
+  }else{
+    wrong++; stepClean=false; say(`${nn(m)} is wrong`,"bad");
+    const p=$("sheetPanel"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash");
+    showStep();
+  }
+}
+function advance(){
+  idx++; got.clear(); stepClean=true;
+  if(idx>=steps.length){
+    clearInterval(timer); osmd.cursor.hide();
+    $("expect").textContent="Done"; $("sStep").textContent=`${steps.length} / ${steps.length}`;
+    const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
+    $("sRight").textContent=right; $("sWrong").textContent=wrong;
+    say(`Finished in ${$("sTime").textContent}. Press Restart to go again.`,"ok"); return;
+  }
+  const c=osmd.cursor; while(curPos<steps[idx].pos){ c.next(); curPos++; }
+  say("",""); showStep();
+}
+/* ---------- Keyboard navigation ---------- */
+function nBars(){ return steps.length? steps[steps.length-1].bar+1 : 0; }
+function goToStep(i){
+  if(!loaded||!steps.length) return;
+  idx=Math.max(0,Math.min(steps.length-1,i)); got.clear(); stepClean=true;
+  moveCursorTo(steps[idx].pos); say("",""); showStep();
+}
+function firstStepOfBar(b){ return steps.findIndex(s=>s.bar===b); }
+document.addEventListener("keydown",e=>{
+  if(!loaded||!steps.length) return;
+  const t=e.target.tagName; if(t==="SELECT"||t==="INPUT") return;
+  const done=idx>=steps.length;
+  const cur=done? steps.length : idx;
+  const bar=done? nBars() : steps[idx].bar;
+  if(e.key==="ArrowLeft"){
+    e.preventDefault();
+    if(e.shiftKey){ goToStep(cur-1); return; }
+    const start=done?-1:firstStepOfBar(bar);
+    if(!done && idx>start) goToStep(start);              // mid-bar: back to this bar's start
+    else { let b=bar-1; while(b>=0&&firstStepOfBar(b)<0) b--; goToStep(b<0?0:firstStepOfBar(b)); }
+  }else if(e.key==="ArrowRight"){
+    e.preventDefault(); if(done) return;
+    if(e.shiftKey){ goToStep(idx+1); return; }
+    const nxt=steps.findIndex(s=>s.bar>bar); if(nxt>=0) goToStep(nxt);
+  }else if(e.key==="Home"){ e.preventDefault(); goToStep(0); }
+});
+
+function tick(){const s=Math.floor((Date.now()-startT)/1000);$("sTime").textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;}
+function say(t,cls){const f=$("feedback");f.textContent=t;f.className=cls;}
+</script>
+</body>
+</html>

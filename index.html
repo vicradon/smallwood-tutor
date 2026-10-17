@@ -121,7 +121,10 @@ function onMidi(e){
 }
 
 /* ---------- Score ---------- */
-const LIBRARY=[{title:"Favourite Reel (p. 10)",file:"scores/favourite-reel.mxl"}];
+const LIBRARY=[
+  {title:"Favourite Reel (p. 10)",file:"scores/favourite-reel.mxl"},
+  {title:"Slow Air",file:"scores/slow-air.mxl"},
+];
 LIBRARY.forEach(x=>{const o=document.createElement("option");o.value=x.file;o.textContent=x.title;$("lib").appendChild(o);});
 $("lib").onchange=async e=>{ e.target.blur();
   if(!e.target.value) return;

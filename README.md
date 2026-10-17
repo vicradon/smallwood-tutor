@@ -7,3 +7,13 @@ Wait-mode piano tutor for exercises from *Smallwood's Pianoforte Tutor*, driven 
 - `scores/`: transcribed exercises as compressed MusicXML.
 
 Needs Chrome or Edge on desktop, or Chrome on Android (Web MIDI). Static site, no build step.
+
+## Adding an exercise
+
+Write a spec in `scores/src/` (format documented at the top of `tools/mkscore.py`), then:
+
+```
+python3 tools/mkscore.py scores/src/NAME.txt scores/NAME.mxl
+```
+
+and add it to `LIBRARY` in `index.html`.

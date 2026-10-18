@@ -83,7 +83,7 @@ kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);borde
       <span class="k">Play</span><span id="expect">--</span>
       <span id="feedback" aria-live="polite"></span>
     </div>
-    <p class="keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> previous or next bar &nbsp;·&nbsp; <kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> one note step &nbsp;·&nbsp; <kbd>Home</kbd> back to the start</p>
+    <p class="keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> previous or next bar &nbsp;·&nbsp; <kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> one note step &nbsp;·&nbsp; <kbd>Home</kbd> back to the start &nbsp;·&nbsp; <kbd>R</kbd> restart</p>
   </section>
 
   <section class="panel" id="sheetPanel" aria-label="Score">
@@ -271,8 +271,12 @@ function goToStep(i){
 }
 function firstStepOfBar(b){ return steps.findIndex(s=>s.bar===b); }
 document.addEventListener("keydown",e=>{
-  if(free||!loaded||!steps.length) return;
-  const t=e.target.tagName; if(t==="SELECT"||t==="INPUT") return;
+  if(!loaded||!steps.length) return;
+  const t=e.target.tagName;
+  if((e.key==="r"||e.key==="R")&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&t!=="SELECT"&&t!=="INPUT"){
+    e.preventDefault(); if(free) $("free").click(); restart(); return;
+  }
+  if(free) return; if(t==="SELECT"||t==="INPUT") return;
   const done=idx>=steps.length;
   const cur=done? steps.length : idx;
   const bar=done? nBars() : steps[idx].bar;

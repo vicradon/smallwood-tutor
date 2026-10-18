@@ -108,7 +108,8 @@ const nn=m=>NAMES[m%12]+(Math.floor(m/12)-1);
 
 let osmd=null, loaded=false;
 let steps=[], idx=0;          // steps: [{midis:Set, total}]
-let got=new Set();            // pitches already played in current step
+let got=new Map();            // pitch -> press time, for notes of this step that are still held
+const TOGETHER_MS=250;        // chord notes must start within this window
 let right=0, wrong=0, stepClean=true, startT=null, timer=null;
 
 /* ---------- MIDI ---------- */
@@ -124,7 +125,9 @@ $("connect").onclick=async()=>{
 function setPill(s,t){$("pill").dataset.s=s;$("pillText").textContent=t;}
 function onMidi(e){
   const [st,n,v]=e.data;
-  if((st&0xf0)===0x90&&v>0) noteOn(n);
+  const t=st&0xf0;
+  if(t===0x90&&v>0) noteOn(n);
+  else if(t===0x80||(t===0x90&&v===0)) noteOff(n);
 }
 
 /* ---------- Score ---------- */
@@ -228,14 +231,24 @@ function noteOn(m){
   if(!startT){startT=Date.now();timer=setInterval(tick,500);}
   const s=steps[idx];
   if(s.midis.has(m)){
-    got.add(m);
-    if([...s.midis].every(x=>got.has(x))){ if(stepClean) right++; advance(); }
-    else showStep();
+    got.set(m,performance.now());
+    if([...s.midis].every(x=>got.has(x))){
+      const times=[...s.midis].map(x=>got.get(x));
+      if(Math.max(...times)-Math.min(...times)<=TOGETHER_MS){ if(stepClean) right++; advance(); return; }
+      stepClean=false;
+      say(`Not together. Release and play ${[...s.midis].sort((a,b)=>a-b).map(nn).join(" + ")} at the same time`,"bad");
+    }
+    showStep();
   }else{
     wrong++; stepClean=false; say(`${nn(m)} is wrong`,"bad");
     const p=$("sheetPanel"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash");
     showStep();
   }
+}
+function noteOff(m){
+  if(!got.has(m)) return;
+  got.delete(m);
+  if(!free&&loaded&&idx<steps.length) showStep();
 }
 function advance(){
   idx++; got.clear(); stepClean=true;

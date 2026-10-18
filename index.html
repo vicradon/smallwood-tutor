@@ -137,9 +137,13 @@ $("lib").onchange=async e=>{ e.target.blur();
   catch(err){ $("sheet").innerHTML='<div class="empty">Could not load that exercise. Check your connection and try again.</div>'; }
 };
 $("file").onchange=e=>{ const f=e.target.files[0]; if(f){ $("lib").value=""; loadScore(f); } };
+// OSMD's drawFingerings option is not reliable, so remove fingerings from the XML itself when they are off.
+function stripFingerings(xml){ return $("fingers").checked ? xml : xml.replace(/<fingering\b[^>]*>[^<]*<\/fingering>/g,""); }
+let lastSource=null;
 async function loadScore(f){
+  lastSource=f;
   $("sheet").innerHTML="";
-  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:true,followCursor:true,backend:"svg",drawFingerings:$("fingers").checked});
+  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:true,followCursor:true,backend:"svg",onXMLRead:stripFingerings});
   try{
     await osmd.load(f);
     osmd.render();
@@ -150,12 +154,15 @@ async function loadScore(f){
   }
 }
 try{ const v=localStorage.getItem("fingers"); if(v!==null) $("fingers").checked=v==="1"; }catch(e){}
-$("fingers").onchange=e=>{
+$("fingers").onchange=async e=>{
   e.target.blur();
   try{ localStorage.setItem("fingers",e.target.checked?"1":"0"); }catch(err){}
-  if(!osmd||!loaded) return;
-  osmd.setOptions({drawFingerings:e.target.checked}); osmd.render();
-  if(idx<steps.length) moveCursorTo(steps[idx].pos);
+  if(!osmd||!loaded||!lastSource) return;
+  const keep=idx;
+  try{
+    await osmd.load(lastSource); osmd.render(); buildSteps();
+    if(keep<steps.length) goToStep(keep); else restart();
+  }catch(err){ console.error(err); }
 };
 $("hand").onchange=()=>{ if(loaded){buildSteps();restart();} };
 $("restart").onclick=restart;

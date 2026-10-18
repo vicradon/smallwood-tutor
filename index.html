@@ -29,6 +29,7 @@ button,.filebtn,select{font:500 14px var(--body);padding:8px 14px;border-radius:
 select{background:var(--panel)}
 select option{background:var(--panel);color:var(--fg)}
 button.primary,.filebtn{background:var(--accent);border-color:var(--accent);color:#fff}
+button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled{opacity:.45;cursor:default}
 button:focus-visible,.filebtn:focus-within,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .filebtn input{position:absolute;opacity:0;width:1px;height:1px}
@@ -72,6 +73,7 @@ kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);borde
       <select id="hand"><option value="both">Both</option><option value="rh">Right only</option><option value="lh">Left only</option></select>
     </label>
     <label class="inline check" for="fingers"><input type="checkbox" id="fingers" checked> Finger numbers</label>
+    <button id="free" aria-pressed="false">Free play</button>
     <button id="restart" disabled>Restart</button>
     <button id="skip" disabled>Skip step</button>
   </section>
@@ -147,7 +149,7 @@ async function loadScore(f){
   try{
     await osmd.load(f);
     osmd.render();
-    loaded=true; buildSteps(); restart();
+    loaded=true; buildSteps(); if(free) $("free").click(); restart();
   }catch(err){
     $("sheet").innerHTML='<div class="empty">Could not read that file. Re-export it from Audiveris as MusicXML (.mxl) and try again.</div>';
     console.error(err);
@@ -162,6 +164,7 @@ $("fingers").onchange=async e=>{
   try{
     await osmd.load(lastSource); osmd.render(); buildSteps();
     if(keep<steps.length) goToStep(keep); else restart();
+    if(free) osmd.cursor.hide();
   }catch(err){ console.error(err); }
 };
 $("hand").onchange=()=>{ if(loaded){buildSteps();restart();} };
@@ -205,7 +208,22 @@ function showStep(){
   $("sRight").textContent=right; $("sWrong").textContent=wrong;
   const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
 }
+/* ---------- Free play ---------- */
+let free=false;
+$("free").onclick=e=>{
+  free=!free; e.currentTarget.setAttribute("aria-pressed",String(free)); e.currentTarget.blur();
+  if(free){
+    if(startT) pausedMs=Date.now()-startT;
+    clearInterval(timer); timer=null; if(osmd&&loaded) osmd.cursor.hide();
+    $("expect").textContent="--"; say("Free play: nothing is checked.","");
+  }else{
+    if(startT){ startT=Date.now()-pausedMs; timer=setInterval(tick,500); }
+    say("",""); if(loaded&&steps.length){ if(idx<steps.length) goToStep(idx); else restart(); }
+  }
+};
+let pausedMs=0;
 function noteOn(m){
+  if(free){ $("expect").textContent=nn(m); return; }
   if(!loaded||idx>=steps.length) return;
   if(!startT){startT=Date.now();timer=setInterval(tick,500);}
   const s=steps[idx];
@@ -240,7 +258,7 @@ function goToStep(i){
 }
 function firstStepOfBar(b){ return steps.findIndex(s=>s.bar===b); }
 document.addEventListener("keydown",e=>{
-  if(!loaded||!steps.length) return;
+  if(free||!loaded||!steps.length) return;
   const t=e.target.tagName; if(t==="SELECT"||t==="INPUT") return;
   const done=idx>=steps.length;
   const cur=done? steps.length : idx;

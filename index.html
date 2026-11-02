@@ -20,149 +20,222 @@
 <meta name="twitter:image" content="https://smallwood.osinachi.me/og.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: control bar, then the score on a paper sheet as the main surface, live stats under it */
+/* Layout: collapsible settings sidebar on the left, the score fills the rest of the screen under a slim "play" bar */
 :root{
   --bg:#f3f4f6; --panel:#ffffff; --fg:#1b1e24; --muted:#6a707c; --line:#d9dce2;
   --accent:#c2410c; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --paper:#fffdf8; --ink:none;
   --display:"Fraunces",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --side:288px;
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#14161a; --panel:#1d2026; --fg:#e8eaee; --muted:#9097a3; --line:#2f333b;
   --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --paper:#1f2227; --ink:invert(.78); color-scheme:dark}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
-main{max-width:1200px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
-h1{font:600 clamp(24px,3.5vw,34px)/1.15 var(--display);margin:0}
-.sub{color:var(--muted);margin:2px 0 0}
-.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px}
-.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
-.pill{display:inline-flex;align-items:center;gap:8px;font-weight:500;padding:6px 12px;border-radius:999px;border:1px solid var(--line);font-size:14px}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
-.pill[data-s="ok"] .dot{background:var(--ok)} .pill[data-s="warn"] .dot{background:var(--warn)} .pill[data-s="bad"] .dot{background:var(--bad)}
-button,.filebtn,select{font:500 14px var(--body);padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
-select{background:var(--panel)}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--body);overflow:hidden}
+.app{display:grid;grid-template-columns:var(--side) minmax(0,1fr);position:fixed;inset:0}
+.app.collapsed{--side:52px}
+
+/* ---- sidebar ---- */
+aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
+.side-head{display:flex;align-items:center;gap:10px;padding:14px 12px 14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
+.side-head img{width:24px;height:24px;flex:none}
+.side-head h1{font:600 19px/1.1 var(--display);margin:0;flex:1;white-space:nowrap}
+#toggleSide{padding:4px 9px;font-size:16px;line-height:1}
+.collapsed .side-head{flex-direction:column;padding:12px 0;gap:12px}
+.collapsed .side-head h1,.collapsed .side-body{display:none}
+.side-body{padding:6px 16px 20px;display:grid;gap:4px}
+.group{display:grid;gap:9px;padding:14px 0;border-bottom:1px solid var(--line)}
+.group:last-child{border-bottom:0}
+.group h2{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row>select{flex:1;min-width:0}
+
+.pill{display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13px}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
+[data-s="ok"] .dot,.dot[data-s="ok"]{background:var(--ok)} [data-s="warn"] .dot,.dot[data-s="warn"]{background:var(--warn)} [data-s="bad"] .dot,.dot[data-s="bad"]{background:var(--bad)}
+#miniDot{display:none}
+.collapsed #miniDot{display:block}
+
+button,select{font:500 13px var(--body);padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
 select option{background:var(--panel);color:var(--fg)}
-button.primary,.filebtn{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled{opacity:.45;cursor:default}
-button:focus-visible,.filebtn:focus-within,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.filebtn input{position:absolute;opacity:0;width:1px;height:1px}
-.spacer{flex:1}
-label.check{cursor:pointer;color:var(--fg)}
-label.check input{accent-color:var(--accent);width:16px;height:16px;margin:0;cursor:pointer}
-label.inline{display:inline-flex;align-items:center;gap:6px;color:var(--muted);font-size:14px}
-.prompt{display:flex;flex-wrap:wrap;align-items:baseline;gap:14px}
-.prompt .k{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-#expect{font:500 26px var(--mono)}
-#feedback{font:500 15px var(--mono);min-height:1.5em}
+button:focus-visible,select:focus-visible,.linkbtn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.linkbtn{color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;justify-self:start}
+.linkbtn:hover{color:var(--fg)}
+.linkbtn input{position:absolute;opacity:0;width:1px;height:1px}
+label.check{display:flex;align-items:flex-start;gap:9px;cursor:pointer}
+label.check input{accent-color:var(--accent);width:16px;height:16px;margin:2px 0 0;cursor:pointer;flex:none}
+label.check small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
+label.field{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
+#bpm{font:500 13px var(--mono);width:5em;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+.hint{color:var(--muted);font-size:12px}
+.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.btns button{padding:7px 4px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px;color:var(--muted);align-items:center}
+kbd{font:500 11px var(--mono);padding:1px 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--fg);white-space:nowrap}
+
+/* ---- main: play bar + score ---- */
+main{display:flex;flex-direction:column;min-width:0;height:100%}
+.playbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 18px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--panel);min-height:58px}
+.playbar .k{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#expect{font:500 24px var(--mono);white-space:nowrap}
+#feedback{font:500 13px var(--mono);min-width:0;flex:1 1 220px}
 #feedback.bad{color:var(--bad)} #feedback.ok{color:var(--ok)}
-.sheet svg{filter:var(--ink)}
-.sheet{background:var(--paper);border-radius:8px;padding:8px;overflow-x:auto;min-height:220px;color:#1b1e24}
-.sheet .empty{color:#6a707c;padding:60px 16px;text-align:center}
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
-.stat .v{font:500 24px var(--mono);font-variant-numeric:tabular-nums}
-.stat .l{color:var(--muted);font-size:12px}
-.keys{margin:10px 0 0;color:var(--muted);font-size:13px}
-kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--fg)}
-.timing{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
-.timing .k{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-#bpm{font:500 14px var(--mono);width:5.5em;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
-#bpm:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.hint{color:var(--muted);font-size:13px}
-#beat{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none}
+.stats{display:flex;gap:16px;align-items:baseline;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.stats b{font:500 15px var(--mono);color:var(--fg);font-variant-numeric:tabular-nums;margin-right:4px}
+#beat{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);flex:none}
 #beat.on{background:var(--muted);border-color:var(--muted)}
 #beat.down{background:var(--accent);border-color:var(--accent)}
+.scroll{flex:1;overflow:auto;padding:14px max(14px,env(safe-area-inset-right,0px)) 40px 14px}
+.sheet{background:var(--paper);border-radius:8px;padding:6px;min-height:100%;color:#1b1e24}
+.sheet svg{filter:var(--ink)}
+.sheet .empty{color:#6a707c;padding:80px 16px;text-align:center}
 .flash{animation:fl .35s}
 @keyframes fl{0%{box-shadow:0 0 0 3px var(--bad)}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.flash{animation:none}}
+
+/* ---- phones: sidebar becomes a top section ---- */
+@media (max-width:760px){
+  body{overflow:auto}
+  .app,.app.collapsed{grid-template-columns:1fr;grid-template-rows:auto 1fr;position:static;min-height:100%}
+  aside{border-right:0;border-bottom:1px solid var(--line);overflow:visible}
+  .collapsed .side-head{flex-direction:row;padding:12px 16px}
+  .collapsed .side-head h1{display:block}
+  main{height:auto}
+  .scroll{overflow:visible}
+}
 </style>
 </head>
 <body>
-<main>
-  <header>
-    <h1>Smallwood Practice Tutor</h1>
-    <p class="sub">Wait mode: the cursor only moves on when you play the right note or chord.</p>
-  </header>
+<div class="app" id="app">
+  <aside aria-label="Settings">
+    <div class="side-head">
+      <img src="/favicon.svg" alt="">
+      <h1>Smallwood</h1>
+      <span class="dot" id="miniDot" title="Keyboard status"></span>
+      <button id="toggleSide" aria-expanded="true" title="Hide settings ( [ )">&laquo;</button>
+    </div>
+    <div class="side-body">
+      <section class="group">
+        <h2>Keyboard</h2>
+        <div class="row"><span class="pill" id="pill" data-s="idle"><span class="dot"></span><span id="pillText">Not connected</span></span></div>
+        <button id="connect" class="primary">Connect MIDI</button>
+      </section>
 
-  <section class="panel bar" aria-label="Setup">
-    <span class="pill" id="pill" data-s="idle"><span class="dot"></span><span id="pillText">Keyboard not connected</span></span>
-    <button id="connect">Connect MIDI</button>
-    <label class="inline" for="lib">Exercise
-      <select id="lib"><option value="">Choose…</option></select>
-    </label>
-    <label class="filebtn">Load file (.mxl / .musicxml)<input type="file" id="file" accept=".mxl,.musicxml,.xml"></label>
-    <span class="spacer"></span>
-    <label class="inline" for="hand">Hands
-      <select id="hand"><option value="both">Both</option><option value="rh">Right only</option><option value="lh">Left only</option></select>
-    </label>
-    <label class="inline check" for="fingers"><input type="checkbox" id="fingers" checked> Finger numbers</label>
-    <button id="free" aria-pressed="false">Free play</button>
-    <button id="restart" disabled>Restart</button>
-    <button id="skip" disabled>Skip step</button>
-  </section>
+      <section class="group">
+        <h2>Exercise</h2>
+        <div class="row"><select id="lib" aria-label="Exercise"><option value="">Choose an exercise…</option></select></div>
+        <label class="field" for="hand">Hands
+          <select id="hand" style="flex:1"><option value="both">Both</option><option value="rh">Right only</option><option value="lh">Left only</option></select>
+        </label>
+        <label class="check" for="fingers"><input type="checkbox" id="fingers" checked> Finger numbers</label>
+        <label class="linkbtn">Open a MusicXML file…<input type="file" id="file" accept=".mxl,.musicxml,.xml"></label>
+      </section>
 
-  <section class="panel timing" aria-label="Timing">
-    <span class="k">Timing</span>
-    <label class="inline check" for="strict"><input type="checkbox" id="strict"> Strict timing</label>
-    <label class="inline" for="bpm">&#9833; =
-      <input type="number" id="bpm" min="20" max="240" step="1" value="80"> BPM
-    </label>
-    <span class="hint" id="bpmHint"></span>
-    <span class="spacer"></span>
-    <label class="inline check" for="click"><input type="checkbox" id="click" checked> Click</label>
-    <label class="inline check" for="pulse"><input type="checkbox" id="pulse" checked> Pulse</label>
-    <span id="beat" aria-hidden="true"></span>
-  </section>
+      <section class="group">
+        <h2>Practice</h2>
+        <div class="btns">
+          <button id="free" aria-pressed="false">Free play</button>
+          <button id="restart" disabled>Restart</button>
+          <button id="skip" disabled>Skip</button>
+        </div>
+        <label class="check" for="wrongRestart"><input type="checkbox" id="wrongRestart">
+          <span>Wrong note restarts bar<small>Go back to the start of the bar on any wrong note.</small></span></label>
+        <label class="check" for="perfect"><input type="checkbox" id="perfect">
+          <span>Perfect repeats<small>A repeated section with any mistake is played again, both times, before moving on.</small></span></label>
+      </section>
 
-  <section class="panel" aria-label="Prompt">
-    <div class="prompt">
+      <section class="group">
+        <h2>Timing</h2>
+        <label class="check" for="strict"><input type="checkbox" id="strict">
+          <span>Strict timing<small>Your first note sets the beat. Off the beat sends you back to the start of the bar.</small></span></label>
+        <label class="field" for="bpm">&#9833; = <input type="number" id="bpm" min="20" max="240" step="1" value="80"> BPM <span class="hint" id="bpmHint"></span></label>
+        <div class="row" style="gap:18px">
+          <label class="check" for="click"><input type="checkbox" id="click" checked> Click</label>
+          <label class="check" for="pulse"><input type="checkbox" id="pulse" checked> Pulse</label>
+        </div>
+      </section>
+
+      <section class="group">
+        <h2>Shortcuts</h2>
+        <div class="keys">
+          <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd></span><span>previous / next bar</span>
+          <span><kbd>Shift</kbd>+<kbd>&larr;</kbd><kbd>&rarr;</kbd></span><span>one note step</span>
+          <span><kbd>Home</kbd></span><span>back to the start</span>
+          <span><kbd>R</kbd></span><span>restart</span>
+          <span><kbd>[</kbd></span><span>hide / show settings</span>
+        </div>
+      </section>
+    </div>
+  </aside>
+
+  <main>
+    <div class="playbar" aria-label="Now playing">
       <span class="k">Play</span><span id="expect">--</span>
       <span id="feedback" aria-live="polite"></span>
+      <span id="beat" aria-hidden="true"></span>
+      <div class="stats">
+        <span><b id="sBar">--</b></span>
+        <span><b id="sAcc">--</b>accuracy</span>
+        <span><b id="sWrong">0</b>wrong</span>
+        <span><b id="sSlips">0</b>replays</span>
+        <span><b id="sTime">0:00</b></span>
+      </div>
     </div>
-    <p class="keys"><kbd>&larr;</kbd> <kbd>&rarr;</kbd> previous or next bar &nbsp;·&nbsp; <kbd>Shift</kbd>+<kbd>&larr;</kbd> <kbd>&rarr;</kbd> one note step &nbsp;·&nbsp; <kbd>Home</kbd> back to the start &nbsp;·&nbsp; <kbd>R</kbd> restart</p>
-  </section>
-
-  <section class="panel" id="sheetPanel" aria-label="Score">
-    <div class="sheet" id="sheet"><div class="empty">Pick an exercise above, or load a MusicXML file.</div></div>
-  </section>
-
-  <section class="panel stats" aria-label="Progress">
-    <div class="stat"><div class="v" id="sBar">0 / 0</div><div class="l">Bar</div></div>
-    <div class="stat"><div class="v" id="sStep">0 / 0</div><div class="l">Step</div></div>
-    <div class="stat"><div class="v" id="sRight">0</div><div class="l">Correct steps</div></div>
-    <div class="stat"><div class="v" id="sWrong">0</div><div class="l">Wrong notes</div></div>
-    <div class="stat"><div class="v" id="sAcc">--</div><div class="l">Accuracy</div></div>
-    <div class="stat"><div class="v" id="sTime">0:00</div><div class="l">Time</div></div>
-    <div class="stat"><div class="v" id="sSlips">0</div><div class="l">Bar replays</div></div>
-  </section>
-</main>
+    <div class="scroll" id="scroll">
+      <div class="sheet" id="sheet"><div class="empty">Pick an exercise in the sidebar, or open a MusicXML file.</div></div>
+    </div>
+  </main>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@2.1.3/build/opensheetmusicdisplay.min.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const NAMES=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 const nn=m=>NAMES[m%12]+(Math.floor(m/12)-1);
+const rnd=x=>Math.round(x*1e6)/1e6;
+const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
 
 let osmd=null, loaded=false;
-let steps=[], idx=0;          // steps: [{midis:Set, total}]
+// steps: cursor positions that need input, in playing order (repeats unrolled)
+//   {pos, midis:Set, bar (measure index), t (whole notes from start), occ (index into occs)}
+let steps=[], idx=0;
+// occs: each time a bar is played, in order. A repeated bar appears twice. {start, bar, pass}
+let occs=[], blocks=[];       // blocks: repeated sections {a, b (occ range covering both passes), err}
 let got=new Map();            // pitch -> press time, for notes of this step that are still held
 const TOGETHER_MS=250;        // chord notes must start within this window
-let right=0, wrong=0, stepClean=true, startT=null, timer=null;
+let right=0, wrong=0, slips=0, stepClean=true, startT=null, timer=null;
+
+/* ---------- Sidebar ---------- */
+function setSide(open){
+  $("app").classList.toggle("collapsed",!open);
+  $("toggleSide").setAttribute("aria-expanded",String(open));
+  $("toggleSide").innerHTML=open?"&laquo;":"&raquo;";
+  $("toggleSide").title=open?"Hide settings ( [ )":"Show settings ( [ )";
+  store.set("sideOpen",open?"1":"0");
+  if(osmd&&loaded) setTimeout(()=>{ try{ osmd.render(); if(!free&&idx<steps.length) moveCursorTo(steps[idx].pos); }catch(e){} },60);
+}
+$("toggleSide").onclick=e=>{ e.currentTarget.blur(); setSide($("app").classList.contains("collapsed")); };
+if(store.get("sideOpen")==="0") setSide(false);
 
 /* ---------- MIDI ---------- */
-$("connect").onclick=async()=>{
+$("connect").onclick=async e=>{
+  e.currentTarget.blur();
   if(!navigator.requestMIDIAccess){setPill("bad","No Web MIDI in this browser");return;}
   try{
     const a=await navigator.requestMIDIAccess();
     const hook=()=>{let n=0;a.inputs.forEach(i=>{n++;i.onmidimessage=onMidi;});
       n?setPill("ok","Keyboard connected"):setPill("warn","No keyboard found");};
     hook(); a.onstatechange=hook;
-  }catch(e){setPill("bad","MIDI access refused");}
+  }catch(err){setPill("bad","MIDI access refused");}
 };
-function setPill(s,t){$("pill").dataset.s=s;$("pillText").textContent=t;}
+function setPill(s,t){$("pill").dataset.s=s;$("miniDot").dataset.s=s;$("pillText").textContent=t;$("miniDot").title=t;
+  $("connect").classList.toggle("primary",s!=="ok");}
 function onMidi(e){
-  const [st,n,v]=e.data;
-  const t=st&0xf0;
+  const [st,n,v]=e.data, t=st&0xf0;
   if(t===0x90&&v>0) noteOn(n);
   else if(t===0x80||(t===0x90&&v===0)) noteOff(n);
 }
@@ -196,22 +269,21 @@ let lastSource=null;
 async function loadScore(f){
   lastSource=f;
   $("sheet").innerHTML="";
-  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:true,followCursor:true,backend:"svg",onXMLRead:stripFingerings});
+  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:true,drawPartNames:false,followCursor:true,backend:"svg",onXMLRead:stripFingerings});
   try{
     await osmd.load(f);
     osmd.render();
-    const b=scoreBpm||80; $("bpm").value=b;
-    $("bpmHint").textContent=scoreBpm?`score: ${scoreBpm}`:"no tempo in score";
+    $("bpm").value=scoreBpm||80;
+    $("bpmHint").textContent=scoreBpm?`score: ${scoreBpm}`:"";
     loaded=true; buildSteps(); if(free) $("free").click(); restart();
   }catch(err){
-    $("sheet").innerHTML='<div class="empty">Could not read that file. Re-export it from Audiveris as MusicXML (.mxl) and try again.</div>';
+    $("sheet").innerHTML='<div class="empty">Could not read that file. Re-export it as MusicXML (.mxl) and try again.</div>';
     console.error(err);
   }
 }
-try{ const v=localStorage.getItem("fingers"); if(v!==null) $("fingers").checked=v==="1"; }catch(e){}
+if(store.get("fingers")!==null) $("fingers").checked=store.get("fingers")==="1";
 $("fingers").onchange=async e=>{
-  e.target.blur();
-  try{ localStorage.setItem("fingers",e.target.checked?"1":"0"); }catch(err){}
+  e.target.blur(); store.set("fingers",e.target.checked?"1":"0");
   if(!osmd||!loaded||!lastSource) return;
   const keep=idx;
   try{
@@ -220,9 +292,9 @@ $("fingers").onchange=async e=>{
     if(free) osmd.cursor.hide();
   }catch(err){ console.error(err); }
 };
-$("hand").onchange=()=>{ if(loaded){buildSteps();restart();} };
-$("restart").onclick=restart;
-$("skip").onclick=()=>{ stepClean=false; advance(); };
+$("hand").onchange=e=>{ e.target.blur(); if(loaded){buildSteps();restart();} };
+$("restart").onclick=e=>{ e.currentTarget.blur(); restart(); };
+$("skip").onclick=e=>{ e.currentTarget.blur(); if(!loaded||idx>=steps.length) return; stepClean=false; advance(); };
 
 function wanted(note){
   if(note.isRest()||note.IsGraceNote) return false;
@@ -233,18 +305,35 @@ function wanted(note){
   if(h==="lh"&&staff!==1) return false;
   return true;
 }
-// Walk the whole score once, recording which cursor positions need input.
+// Walk the whole score once in playing order (the cursor follows repeat signs).
 function buildSteps(){
-  const c=osmd.cursor; c.reset(); steps=[]; barStarts=new Set(); let pos=0;
+  const c=osmd.cursor; c.reset(); steps=[]; occs=[]; let pos=0;
   while(!c.Iterator.EndReached){
     const it=c.Iterator;
-    const t=it.CurrentEnrolledTimestamp.RealValue;               // whole notes from the start, repeats unrolled
-    barStarts.add(rnd(t-it.CurrentRelativeInMeasureTimestamp.RealValue));
+    const t=it.CurrentEnrolledTimestamp.RealValue;             // whole notes from the start, repeats unrolled
+    const start=rnd(t-it.CurrentRelativeInMeasureTimestamp.RealValue);
+    if(!occs.length||occs[occs.length-1].start!==start) occs.push({start,bar:it.CurrentMeasureIndex,pass:1});
     const midis=new Set(c.NotesUnderCursor().filter(wanted).map(n=>n.halfTone+12));
-    if(midis.size) steps.push({pos,midis,bar:it.CurrentMeasureIndex,t});
+    if(midis.size) steps.push({pos,midis,bar:it.CurrentMeasureIndex,t,occ:occs.length-1});
     c.next(); pos++;
   }
+  // A jump back in bar number marks the end of a repeated section.
+  blocks=[];
+  for(let k=1;k<occs.length;k++){
+    if(occs[k].bar>occs[k-1].bar) continue;
+    const startBar=occs[k].bar, endBar=occs[k-1].bar;
+    let a=k-1; while(a>0&&occs[a].bar!==startBar) a--;
+    let b=k; while(b<occs.length-1&&occs[b].bar!==endBar) b++;
+    for(let j=k;j<=b;j++) occs[j].pass=2;
+    blocks.push({a,b,err:0});
+  }
 }
+const firstStepOfOcc=o=>steps.findIndex(s=>s.occ===o);
+const curOcc=()=>idx<steps.length?steps[idx].occ:occs.length;
+const nMeasures=()=>occs.reduce((m,o)=>Math.max(m,o.bar+1),0);
+const blockOf=o=>blocks.find(b=>o>=b.a&&o<=b.b);
+function noteMistake(){ const b=blockOf(curOcc()); if(b) b.err++; }
+
 let curPos=0;
 function moveCursorTo(pos){
   const c=osmd.cursor; c.reset(); for(let i=0;i<pos;i++) c.next(); curPos=pos; c.show();
@@ -252,21 +341,27 @@ function moveCursorTo(pos){
 function restart(){
   if(!loaded) return;
   idx=0; right=0; wrong=0; slips=0; got.clear(); stepClean=true; startT=null; clearInterval(timer); $("sTime").textContent="0:00";
+  blocks.forEach(b=>b.err=0);
   stopTiming();
   $("restart").disabled=false; $("skip").disabled=!steps.length;
   if(!steps.length){ $("expect").textContent="--"; say("No notes found for this hand setting.","bad"); return; }
   moveCursorTo(steps[0].pos); showStep(); say("","");
 }
 function showStep(){
-  const s=steps[idx];
+  const s=steps[idx], o=occs[s.occ];
   $("expect").textContent=[...s.midis].sort((a,b)=>b-a).map(m=>got.has(m)?`(${nn(m)})`:nn(m)).join(" + ");
-  $("sStep").textContent=`${idx+1} / ${steps.length}`;
-  $("sBar").textContent=`${s.bar+1} / ${nBars()}`;
-  $("sRight").textContent=right; $("sWrong").textContent=wrong; $("sSlips").textContent=slips;
+  const inBlock=blockOf(s.occ);
+  $("sBar").textContent=`Bar ${s.bar+1}/${nMeasures()}${inBlock?(o.pass===2?" (2nd time)":" (1st time)"):""}`;
+  showStats();
+}
+function showStats(){
+  $("sWrong").textContent=wrong; $("sSlips").textContent=slips;
   const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
 }
+function flash(){ const p=$("sheet"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); }
+
 /* ---------- Free play ---------- */
-let free=false;
+let free=false, pausedMs=0;
 $("free").onclick=e=>{
   free=!free; e.currentTarget.setAttribute("aria-pressed",String(free)); e.currentTarget.blur();
   if(free){
@@ -278,7 +373,8 @@ $("free").onclick=e=>{
     say("",""); if(loaded&&steps.length){ if(idx<steps.length) goToStep(idx); else restart(); }
   }
 };
-let pausedMs=0;
+
+/* ---------- Playing ---------- */
 function noteOn(m){
   if(free){ $("expect").textContent=nn(m); return; }
   if(!loaded||idx>=steps.length) return;
@@ -292,14 +388,15 @@ function noteOn(m){
         if(!checkTiming(Math.min(...times))) return;            // off the beat: bar restarted
         if(stepClean) right++; advance(); return;
       }
+      if(stepClean) noteMistake();
       stepClean=false;
       say(`Not together. Release and play ${[...s.midis].sort((a,b)=>a-b).map(nn).join(" + ")} at the same time`,"bad");
     }
     showStep();
   }else{
-    wrong++; stepClean=false; say(`${nn(m)} is wrong`,"bad");
-    const p=$("sheetPanel"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash");
-    showStep();
+    wrong++; stepClean=false; noteMistake(); flash();
+    if($("wrongRestart").checked){ backToBarStart(`${nn(m)} is wrong.`); return; }
+    say(`${nn(m)} is wrong`,"bad"); showStep();
   }
 }
 function noteOff(m){
@@ -307,22 +404,41 @@ function noteOff(m){
   got.delete(m);
   if(!free&&loaded&&idx<steps.length) showStep();
 }
+// Send the player back to the start of the bar they are in (this time through, not the first time).
+function backToBarStart(why){
+  const o=steps[idx].occ, bar=steps[idx].bar;
+  anchor=null; goToStep(firstStepOfOcc(o));
+  say(`${why} Play bar ${bar+1} again${strictOn()?", on the click":""}.`,"bad");
+}
 function advance(){
+  const prevOcc=steps[idx].occ;
   idx++; got.clear(); stepClean=true;
+  const nextOcc=idx<steps.length?steps[idx].occ:occs.length;
+  // Leaving a repeated section: with "Perfect repeats", any mistake sends you back to its start.
+  for(const b of blocks){
+    if(prevOcc<=b.b&&nextOcc>b.b){
+      if($("perfect").checked&&b.err>0){
+        const n=b.err; b.err=0; anchor=null;
+        goToStep(firstStepOfOcc(b.a));
+        say(`${n} mistake${n>1?"s":""} in that section. Play it again, both times through.`,"bad");
+        return;
+      }
+      b.err=0;
+    }
+    if(prevOcc<b.a&&nextOcc>=b.a) b.err=0;
+  }
   if(idx>=steps.length){
     clearInterval(timer); osmd.cursor.hide(); stopTiming();
-    $("expect").textContent="Done"; $("sStep").textContent=`${steps.length} / ${steps.length}`;
-    const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
-    $("sRight").textContent=right; $("sWrong").textContent=wrong;
-    say(`Finished in ${$("sTime").textContent}. Press Restart to go again.`,"ok"); return;
+    $("expect").textContent="Done"; showStats();
+    say(`Finished in ${$("sTime").textContent}. Press R to go again.`,"ok"); return;
   }
   const c=osmd.cursor; while(curPos<steps[idx].pos){ c.next(); curPos++; }
   say("",""); showStep();
 }
+
 /* ---------- Strict timing + metronome ---------- */
 let anchor=null;              // {ms, t}: when a step was played and where it sits in the score
-let slips=0, barStarts=new Set(), schedTimer=null, nextBeat=null, actx=null;
-const rnd=x=>Math.round(x*1e6)/1e6;
+let schedTimer=null, nextBeat=null, actx=null;
 const QUARTER=0.25;           // BPM counts quarter notes; score time is in whole notes
 const wholeMs=()=>4*60000/Math.max(20,Math.min(240,+$("bpm").value||80));
 const tolMs=()=>Math.max(100,0.25*wholeMs()*QUARTER);   // a quarter of a beat, at least 100 ms
@@ -335,41 +451,37 @@ function checkTiming(onset){
   if(!anchor){ anchor={ms:onset,t:steps[idx].t}; startMetronome(); return true; }
   const dev=onset-expectedAt(idx);
   if(Math.abs(dev)<=tolMs()) return true;
-  replayBar(dev<0?"early":"late",Math.abs(dev));
+  slipped(dev<0?"early":"late",Math.abs(dev));
   return false;
 }
-function replayBar(kind,devMs){
-  const bar=steps[idx].bar, beats=(devMs/(wholeMs()*QUARTER)).toFixed(1);
-  slips++; anchor=null;
-  goToStep(firstStepOfBar(bar));
-  say(`Too ${kind} by ${beats} beat${beats==="1.0"?"":"s"}. Play bar ${bar+1} again, on the click.`,"bad");
-  const p=$("sheetPanel"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash");
-  showStep();
+function slipped(kind,devMs){
+  const beats=(devMs/(wholeMs()*QUARTER)).toFixed(1);
+  slips++; noteMistake(); flash();
+  backToBarStart(`Too ${kind} by ${beats} beat${beats==="1.0"?"":"s"}.`);
 }
 function stopTiming(){ anchor=null; clearInterval(schedTimer); schedTimer=null; nextBeat=null; $("beat").className=""; }
 
-// Beats are scheduled on the grid set by the anchor; the grid keeps running through a bar replay
-// so you can come back in on the click, and re-anchors on the first note of the replayed bar.
+// Beats follow the grid set by the anchor; the grid keeps running through a bar replay
+// so you can come back in on the click, and re-anchors on your next first note.
 function startMetronome(){
   if(!anchor) return;
-  const q=QUARTER, first=Math.ceil(rnd(anchor.t/q))*q;
-  nextBeat={t:first, ref:{...anchor}};
+  nextBeat={t:Math.ceil(rnd(anchor.t/QUARTER))*QUARTER, ref:{...anchor}};
   if(!schedTimer) schedTimer=setInterval(schedule,25);
 }
 function audio(){
   try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); }catch(e){}
   return actx;
 }
+function isDownbeat(t){ return occs.some(o=>o.start===rnd(t)); }
 function schedule(){
   if(!strictOn()){ stopTiming(); return; }
   const now=performance.now();
-  // Late detection: the expected moment for this step has passed.
-  if(anchor&&idx<steps.length&&now>expectedAt(idx)+tolMs()){ replayBar("late",now-expectedAt(idx)); }
+  if(anchor&&idx<steps.length&&now>expectedAt(idx)+tolMs()){ slipped("late",now-expectedAt(idx)); }
   if(anchor&&nextBeat&&(nextBeat.ref.ms!==anchor.ms)) startMetronome();       // re-phase after a new anchor
   while(nextBeat){
     const at=nextBeat.ref.ms+(nextBeat.t-nextBeat.ref.t)*wholeMs();
     if(at>now+120) break;
-    if(at>=now-30) fireBeat(at, barStarts.has(rnd(nextBeat.t)));
+    if(at>=now-30) fireBeat(at,isDownbeat(nextBeat.t));
     nextBeat.t=rnd(nextBeat.t+QUARTER);
   }
 }
@@ -390,45 +502,41 @@ function fireBeat(at,down){
 }
 // Browsers only allow sound after a click or key press on the page.
 ["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,()=>audio(),{once:true}));
-// Remember timing settings in this browser.
-["strict","click","pulse"].forEach(id=>{
-  try{ const v=localStorage.getItem("t_"+id); if(v!==null) $(id).checked=v==="1"; }catch(e){}
+// Remember practice and timing settings in this browser.
+["strict","click","pulse","wrongRestart","perfect"].forEach(id=>{
+  const v=store.get("t_"+id); if(v!==null) $(id).checked=v==="1";
   $(id).addEventListener("change",e=>{
-    try{ localStorage.setItem("t_"+id,e.target.checked?"1":"0"); }catch(err){}
-    e.target.blur();
-    if(id==="strict"){ stopTiming(); if(loaded&&steps.length&&idx<steps.length){ goToStep(firstStepOfBar(steps[idx].bar)); say(e.target.checked?"Strict timing on: your first note sets the beat.":"",""); } }
+    store.set("t_"+id,e.target.checked?"1":"0"); e.target.blur();
+    if(id==="strict"){ stopTiming(); if(loaded&&steps.length&&idx<steps.length){ goToStep(firstStepOfOcc(steps[idx].occ)); say(e.target.checked?"Strict timing on: your first note sets the beat.":"",""); } }
   });
 });
-$("bpm").addEventListener("change",()=>{ stopTiming(); if(loaded&&steps.length&&idx<steps.length) goToStep(firstStepOfBar(steps[idx].bar)); });
+$("bpm").addEventListener("change",e=>{ e.target.blur(); stopTiming(); if(loaded&&steps.length&&idx<steps.length) goToStep(firstStepOfOcc(steps[idx].occ)); });
 
-/* ---------- Keyboard navigation ---------- */
-function nBars(){ return steps.length? steps[steps.length-1].bar+1 : 0; }
+/* ---------- Navigation ---------- */
 function goToStep(i){
-  if(!loaded||!steps.length) return;
+  if(!loaded||!steps.length||i<0) return;
   idx=Math.max(0,Math.min(steps.length-1,i)); got.clear(); stepClean=true; anchor=null;
   moveCursorTo(steps[idx].pos); say("",""); showStep();
 }
-function firstStepOfBar(b){ return steps.findIndex(s=>s.bar===b); }
 document.addEventListener("keydown",e=>{
+  const t=e.target.tagName, typing=t==="SELECT"||t==="INPUT";
+  if(e.key==="["&&!typing){ e.preventDefault(); setSide($("app").classList.contains("collapsed")); return; }
   if(!loaded||!steps.length) return;
-  const t=e.target.tagName;
-  if((e.key==="r"||e.key==="R")&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&t!=="SELECT"&&t!=="INPUT"){
+  if((e.key==="r"||e.key==="R")&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!typing){
     e.preventDefault(); if(free) $("free").click(); restart(); return;
   }
-  if(free) return; if(t==="SELECT"||t==="INPUT") return;
-  const done=idx>=steps.length;
-  const cur=done? steps.length : idx;
-  const bar=done? nBars() : steps[idx].bar;
+  if(free||typing) return;
+  const done=idx>=steps.length, o=curOcc();
   if(e.key==="ArrowLeft"){
     e.preventDefault();
-    if(e.shiftKey){ goToStep(cur-1); return; }
-    const start=done?-1:firstStepOfBar(bar);
-    if(!done && idx>start) goToStep(start);              // mid-bar: back to this bar's start
-    else { let b=bar-1; while(b>=0&&firstStepOfBar(b)<0) b--; goToStep(b<0?0:firstStepOfBar(b)); }
+    if(e.shiftKey){ goToStep((done?steps.length:idx)-1); return; }
+    const start=done?-1:firstStepOfOcc(o);
+    if(!done&&idx>start) goToStep(start);               // mid-bar: back to this bar's start
+    else { let p=o-1; while(p>=0&&firstStepOfOcc(p)<0) p--; goToStep(p<0?0:firstStepOfOcc(p)); }
   }else if(e.key==="ArrowRight"){
     e.preventDefault(); if(done) return;
     if(e.shiftKey){ goToStep(idx+1); return; }
-    const nxt=steps.findIndex(s=>s.bar>bar); if(nxt>=0) goToStep(nxt);
+    const nxt=steps.findIndex(s=>s.occ>o); if(nxt>=0) goToStep(nxt);
   }else if(e.key==="Home"){ e.preventDefault(); goToStep(0); }
 });
 

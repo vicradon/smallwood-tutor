@@ -23,12 +23,12 @@
 /* Layout: control bar, then the score on a paper sheet as the main surface, live stats under it */
 :root{
   --bg:#f3f4f6; --panel:#ffffff; --fg:#1b1e24; --muted:#6a707c; --line:#d9dce2;
-  --accent:#c2410c; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --paper:#fffdf8;
+  --accent:#c2410c; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --paper:#fffdf8; --ink:none;
   --display:"Fraunces",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#14161a; --panel:#1d2026; --fg:#e8eaee; --muted:#9097a3; --line:#2f333b;
-  --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --paper:#f4f1ea; color-scheme:dark}}
+  --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --paper:#1f2227; --ink:invert(.78); color-scheme:dark}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
 main{max-width:1200px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:18px}
@@ -56,6 +56,7 @@ label.inline{display:inline-flex;align-items:center;gap:6px;color:var(--muted);f
 #expect{font:500 26px var(--mono)}
 #feedback{font:500 15px var(--mono);min-height:1.5em}
 #feedback.bad{color:var(--bad)} #feedback.ok{color:var(--ok)}
+.sheet svg{filter:var(--ink)}
 .sheet{background:var(--paper);border-radius:8px;padding:8px;overflow-x:auto;min-height:220px;color:#1b1e24}
 .sheet .empty{color:#6a707c;padding:60px 16px;text-align:center}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}

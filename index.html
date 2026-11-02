@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Smallwood Practice Tutor</title>
+<meta name="description" content="Wait-mode piano tutor for Smallwood's Pianoforte Tutor. Plug in a USB-MIDI keyboard and the score only moves on when you play the right notes.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#14161a">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://smallwood.osinachi.me/">
+<meta property="og:title" content="Smallwood Practice Tutor">
+<meta property="og:description" content="Practise Smallwood's piano exercises with a MIDI keyboard. The cursor waits for the right notes, with optional strict timing and a metronome.">
+<meta property="og:image" content="https://smallwood.osinachi.me/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://smallwood.osinachi.me/og.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: control bar, then the score on a paper sheet as the main surface, live stats under it */
@@ -156,6 +170,7 @@ function onMidi(e){
 const LIBRARY=[
   {title:"Favourite Reel (p. 10)",file:"scores/favourite-reel.mxl"},
   {title:"Slow Air",file:"scores/slow-air.mxl"},
+  {title:"March",file:"scores/march.mxl"},
 ];
 LIBRARY.forEach(x=>{const o=document.createElement("option");o.value=x.file;o.textContent=x.title;$("lib").appendChild(o);});
 $("lib").onchange=async e=>{ e.target.blur();

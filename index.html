@@ -49,6 +49,14 @@ label.inline{display:inline-flex;align-items:center;gap:6px;color:var(--muted);f
 .stat .l{color:var(--muted);font-size:12px}
 .keys{margin:10px 0 0;color:var(--muted);font-size:13px}
 kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--fg)}
+.timing{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px}
+.timing .k{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+#bpm{font:500 14px var(--mono);width:5.5em;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
+#bpm:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hint{color:var(--muted);font-size:13px}
+#beat{width:18px;height:18px;border-radius:50%;border:2px solid var(--line);flex:none}
+#beat.on{background:var(--muted);border-color:var(--muted)}
+#beat.down{background:var(--accent);border-color:var(--accent)}
 .flash{animation:fl .35s}
 @keyframes fl{0%{box-shadow:0 0 0 3px var(--bad)}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.flash{animation:none}}
@@ -78,6 +86,19 @@ kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);borde
     <button id="skip" disabled>Skip step</button>
   </section>
 
+  <section class="panel timing" aria-label="Timing">
+    <span class="k">Timing</span>
+    <label class="inline check" for="strict"><input type="checkbox" id="strict"> Strict timing</label>
+    <label class="inline" for="bpm">&#9833; =
+      <input type="number" id="bpm" min="20" max="240" step="1" value="80"> BPM
+    </label>
+    <span class="hint" id="bpmHint"></span>
+    <span class="spacer"></span>
+    <label class="inline check" for="click"><input type="checkbox" id="click" checked> Click</label>
+    <label class="inline check" for="pulse"><input type="checkbox" id="pulse" checked> Pulse</label>
+    <span id="beat" aria-hidden="true"></span>
+  </section>
+
   <section class="panel" aria-label="Prompt">
     <div class="prompt">
       <span class="k">Play</span><span id="expect">--</span>
@@ -97,6 +118,7 @@ kbd{font:500 12px var(--mono);padding:1px 6px;border:1px solid var(--line);borde
     <div class="stat"><div class="v" id="sWrong">0</div><div class="l">Wrong notes</div></div>
     <div class="stat"><div class="v" id="sAcc">--</div><div class="l">Accuracy</div></div>
     <div class="stat"><div class="v" id="sTime">0:00</div><div class="l">Time</div></div>
+    <div class="stat"><div class="v" id="sSlips">0</div><div class="l">Bar replays</div></div>
   </section>
 </main>
 
@@ -143,7 +165,17 @@ $("lib").onchange=async e=>{ e.target.blur();
 };
 $("file").onchange=e=>{ const f=e.target.files[0]; if(f){ $("lib").value=""; loadScore(f); } };
 // OSMD's drawFingerings option is not reliable, so remove fingerings from the XML itself when they are off.
-function stripFingerings(xml){ return $("fingers").checked ? xml : xml.replace(/<fingering\b[^>]*>[^<]*<\/fingering>/g,""); }
+function stripFingerings(xml){ scoreBpm=detectBpm(xml); return $("fingers").checked ? xml : xml.replace(/<fingering\b[^>]*>[^<]*<\/fingering>/g,""); }
+// Tempo from the score: a metronome mark or <sound tempo>, else the tempo word.
+const TEMPO_WORDS=[["prestissimo",190],["presto",170],["vivace",150],["allegretto",108],["allegro",126],["moderato",100],["andantino",84],["andante",76],["adagio",66],["lento",56],["largo",50],["grave",44]];
+let scoreBpm=null;
+function detectBpm(xml){
+  let m=xml.match(/<per-minute>\s*([\d.]+)/)||xml.match(/<sound[^>]*\btempo="([\d.]+)"/);
+  if(m) return Math.round(+m[1]);
+  const words=(xml.match(/<words[^>]*>[^<]*<\/words>/g)||[]).join(" ").toLowerCase();
+  for(const [w,b] of TEMPO_WORDS) if(words.includes(w)) return b;
+  return null;
+}
 let lastSource=null;
 async function loadScore(f){
   lastSource=f;
@@ -152,6 +184,8 @@ async function loadScore(f){
   try{
     await osmd.load(f);
     osmd.render();
+    const b=scoreBpm||80; $("bpm").value=b;
+    $("bpmHint").textContent=scoreBpm?`score: ${scoreBpm}`:"no tempo in score";
     loaded=true; buildSteps(); if(free) $("free").click(); restart();
   }catch(err){
     $("sheet").innerHTML='<div class="empty">Could not read that file. Re-export it from Audiveris as MusicXML (.mxl) and try again.</div>';
@@ -185,10 +219,13 @@ function wanted(note){
 }
 // Walk the whole score once, recording which cursor positions need input.
 function buildSteps(){
-  const c=osmd.cursor; c.reset(); steps=[]; let pos=0;
+  const c=osmd.cursor; c.reset(); steps=[]; barStarts=new Set(); let pos=0;
   while(!c.Iterator.EndReached){
+    const it=c.Iterator;
+    const t=it.CurrentEnrolledTimestamp.RealValue;               // whole notes from the start, repeats unrolled
+    barStarts.add(rnd(t-it.CurrentRelativeInMeasureTimestamp.RealValue));
     const midis=new Set(c.NotesUnderCursor().filter(wanted).map(n=>n.halfTone+12));
-    if(midis.size) steps.push({pos,midis,bar:c.Iterator.CurrentMeasureIndex});
+    if(midis.size) steps.push({pos,midis,bar:it.CurrentMeasureIndex,t});
     c.next(); pos++;
   }
 }
@@ -198,7 +235,8 @@ function moveCursorTo(pos){
 }
 function restart(){
   if(!loaded) return;
-  idx=0; right=0; wrong=0; got.clear(); stepClean=true; startT=null; clearInterval(timer); $("sTime").textContent="0:00";
+  idx=0; right=0; wrong=0; slips=0; got.clear(); stepClean=true; startT=null; clearInterval(timer); $("sTime").textContent="0:00";
+  stopTiming();
   $("restart").disabled=false; $("skip").disabled=!steps.length;
   if(!steps.length){ $("expect").textContent="--"; say("No notes found for this hand setting.","bad"); return; }
   moveCursorTo(steps[0].pos); showStep(); say("","");
@@ -208,7 +246,7 @@ function showStep(){
   $("expect").textContent=[...s.midis].sort((a,b)=>b-a).map(m=>got.has(m)?`(${nn(m)})`:nn(m)).join(" + ");
   $("sStep").textContent=`${idx+1} / ${steps.length}`;
   $("sBar").textContent=`${s.bar+1} / ${nBars()}`;
-  $("sRight").textContent=right; $("sWrong").textContent=wrong;
+  $("sRight").textContent=right; $("sWrong").textContent=wrong; $("sSlips").textContent=slips;
   const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
 }
 /* ---------- Free play ---------- */
@@ -217,7 +255,7 @@ $("free").onclick=e=>{
   free=!free; e.currentTarget.setAttribute("aria-pressed",String(free)); e.currentTarget.blur();
   if(free){
     if(startT) pausedMs=Date.now()-startT;
-    clearInterval(timer); timer=null; if(osmd&&loaded) osmd.cursor.hide();
+    clearInterval(timer); timer=null; stopTiming(); if(osmd&&loaded) osmd.cursor.hide();
     $("expect").textContent="--"; say("Free play: nothing is checked.","");
   }else{
     if(startT){ startT=Date.now()-pausedMs; timer=setInterval(tick,500); }
@@ -234,7 +272,10 @@ function noteOn(m){
     got.set(m,performance.now());
     if([...s.midis].every(x=>got.has(x))){
       const times=[...s.midis].map(x=>got.get(x));
-      if(Math.max(...times)-Math.min(...times)<=TOGETHER_MS){ if(stepClean) right++; advance(); return; }
+      if(Math.max(...times)-Math.min(...times)<=TOGETHER_MS){
+        if(!checkTiming(Math.min(...times))) return;            // off the beat: bar restarted
+        if(stepClean) right++; advance(); return;
+      }
       stepClean=false;
       say(`Not together. Release and play ${[...s.midis].sort((a,b)=>a-b).map(nn).join(" + ")} at the same time`,"bad");
     }
@@ -253,7 +294,7 @@ function noteOff(m){
 function advance(){
   idx++; got.clear(); stepClean=true;
   if(idx>=steps.length){
-    clearInterval(timer); osmd.cursor.hide();
+    clearInterval(timer); osmd.cursor.hide(); stopTiming();
     $("expect").textContent="Done"; $("sStep").textContent=`${steps.length} / ${steps.length}`;
     const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
     $("sRight").textContent=right; $("sWrong").textContent=wrong;
@@ -262,11 +303,93 @@ function advance(){
   const c=osmd.cursor; while(curPos<steps[idx].pos){ c.next(); curPos++; }
   say("",""); showStep();
 }
+/* ---------- Strict timing + metronome ---------- */
+let anchor=null;              // {ms, t}: when a step was played and where it sits in the score
+let slips=0, barStarts=new Set(), schedTimer=null, nextBeat=null, actx=null;
+const rnd=x=>Math.round(x*1e6)/1e6;
+const QUARTER=0.25;           // BPM counts quarter notes; score time is in whole notes
+const wholeMs=()=>4*60000/Math.max(20,Math.min(240,+$("bpm").value||80));
+const tolMs=()=>Math.max(100,0.25*wholeMs()*QUARTER);   // a quarter of a beat, at least 100 ms
+const strictOn=()=>$("strict").checked&&!free;
+const expectedAt=k=>anchor.ms+(steps[k].t-anchor.t)*wholeMs();
+
+// Returns true if the step may advance; otherwise sends the player back to the start of the bar.
+function checkTiming(onset){
+  if(!strictOn()) return true;
+  if(!anchor){ anchor={ms:onset,t:steps[idx].t}; startMetronome(); return true; }
+  const dev=onset-expectedAt(idx);
+  if(Math.abs(dev)<=tolMs()) return true;
+  replayBar(dev<0?"early":"late",Math.abs(dev));
+  return false;
+}
+function replayBar(kind,devMs){
+  const bar=steps[idx].bar, beats=(devMs/(wholeMs()*QUARTER)).toFixed(1);
+  slips++; anchor=null;
+  goToStep(firstStepOfBar(bar));
+  say(`Too ${kind} by ${beats} beat${beats==="1.0"?"":"s"}. Play bar ${bar+1} again, on the click.`,"bad");
+  const p=$("sheetPanel"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash");
+  showStep();
+}
+function stopTiming(){ anchor=null; clearInterval(schedTimer); schedTimer=null; nextBeat=null; $("beat").className=""; }
+
+// Beats are scheduled on the grid set by the anchor; the grid keeps running through a bar replay
+// so you can come back in on the click, and re-anchors on the first note of the replayed bar.
+function startMetronome(){
+  if(!anchor) return;
+  const q=QUARTER, first=Math.ceil(rnd(anchor.t/q))*q;
+  nextBeat={t:first, ref:{...anchor}};
+  if(!schedTimer) schedTimer=setInterval(schedule,25);
+}
+function audio(){
+  try{ if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)(); if(actx.state==="suspended") actx.resume(); }catch(e){}
+  return actx;
+}
+function schedule(){
+  if(!strictOn()){ stopTiming(); return; }
+  const now=performance.now();
+  // Late detection: the expected moment for this step has passed.
+  if(anchor&&idx<steps.length&&now>expectedAt(idx)+tolMs()){ replayBar("late",now-expectedAt(idx)); }
+  if(anchor&&nextBeat&&(nextBeat.ref.ms!==anchor.ms)) startMetronome();       // re-phase after a new anchor
+  while(nextBeat){
+    const at=nextBeat.ref.ms+(nextBeat.t-nextBeat.ref.t)*wholeMs();
+    if(at>now+120) break;
+    if(at>=now-30) fireBeat(at, barStarts.has(rnd(nextBeat.t)));
+    nextBeat.t=rnd(nextBeat.t+QUARTER);
+  }
+}
+function fireBeat(at,down){
+  const delay=Math.max(0,at-performance.now());
+  if($("click").checked){
+    const a=audio();
+    if(a){
+      const when=a.currentTime+delay/1000, o=a.createOscillator(), g=a.createGain();
+      o.frequency.value=down?1600:1000; g.gain.setValueAtTime(0.0001,when);
+      g.gain.exponentialRampToValueAtTime(down?0.5:0.3,when+0.002); g.gain.exponentialRampToValueAtTime(0.0001,when+0.05);
+      o.connect(g).connect(a.destination); o.start(when); o.stop(when+0.06);
+    }
+  }
+  if($("pulse").checked){
+    setTimeout(()=>{ const b=$("beat"); b.className=down?"down":"on"; setTimeout(()=>{b.className="";},110); },delay);
+  }
+}
+// Browsers only allow sound after a click or key press on the page.
+["pointerdown","keydown"].forEach(ev=>document.addEventListener(ev,()=>audio(),{once:true}));
+// Remember timing settings in this browser.
+["strict","click","pulse"].forEach(id=>{
+  try{ const v=localStorage.getItem("t_"+id); if(v!==null) $(id).checked=v==="1"; }catch(e){}
+  $(id).addEventListener("change",e=>{
+    try{ localStorage.setItem("t_"+id,e.target.checked?"1":"0"); }catch(err){}
+    e.target.blur();
+    if(id==="strict"){ stopTiming(); if(loaded&&steps.length&&idx<steps.length){ goToStep(firstStepOfBar(steps[idx].bar)); say(e.target.checked?"Strict timing on: your first note sets the beat.":"",""); } }
+  });
+});
+$("bpm").addEventListener("change",()=>{ stopTiming(); if(loaded&&steps.length&&idx<steps.length) goToStep(firstStepOfBar(steps[idx].bar)); });
+
 /* ---------- Keyboard navigation ---------- */
 function nBars(){ return steps.length? steps[steps.length-1].bar+1 : 0; }
 function goToStep(i){
   if(!loaded||!steps.length) return;
-  idx=Math.max(0,Math.min(steps.length-1,i)); got.clear(); stepClean=true;
+  idx=Math.max(0,Math.min(steps.length-1,i)); got.clear(); stepClean=true; anchor=null;
   moveCursorTo(steps[idx].pos); say("",""); showStep();
 }
 function firstStepOfBar(b){ return steps.findIndex(s=>s.bar===b); }

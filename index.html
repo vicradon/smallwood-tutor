@@ -19,6 +19,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://smallwood.osinachi.me/og.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script>try{const t=localStorage.getItem("theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t;}catch(e){}</script>
 <style>
 /* Layout: pieces on the left, practice switches on the right, both collapsible; the score fills the middle under one slim play bar */
 :root{
@@ -28,10 +29,15 @@
   --display:"Fraunces",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
   --left:220px; --right:264px;
 }
-@media (prefers-color-scheme:dark){:root{
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#131518; --panel:#131518; --raise:#1f2227; --fg:#e9eaec; --soft:#b4b8bf; --muted:#8e939c; --line:#262a30;
   --accent:#fb923c; --on-accent:#1a1d21; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --lh:#7dd3fc;
   --paper:#1f2227; --ink:invert(.78); --key:#d9dbdf; --keyline:#131518; --black:#0b0c0e; color-scheme:dark}}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  --bg:#131518; --panel:#131518; --raise:#1f2227; --fg:#e9eaec; --soft:#b4b8bf; --muted:#8e939c; --line:#262a30;
+  --accent:#fb923c; --on-accent:#1a1d21; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --lh:#7dd3fc;
+  --paper:#1f2227; --ink:invert(.78); --key:#d9dbdf; --keyline:#131518; --black:#0b0c0e; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -221,6 +227,14 @@ label.row{cursor:pointer}
 
   <aside id="right" aria-label="Practice settings">
     <section>
+      <div class="label" style="padding:0">Theme</div>
+      <div class="seg" role="group" aria-label="Theme" id="theme">
+        <button data-theme-set="system" aria-pressed="true">System</button>
+        <button data-theme-set="light" aria-pressed="false">Light</button>
+        <button data-theme-set="dark" aria-pressed="false">Dark</button>
+      </div>
+    </section>
+    <section>
       <div class="label" style="padding:0">Hands</div>
       <div class="seg" role="group" aria-label="Hands" id="hands">
         <button data-hand="lh" aria-pressed="false">Left</button>
@@ -296,6 +310,15 @@ function togglePop(force){
   $("helpPop").hidden=!open; $("help").setAttribute("aria-expanded",String(open));
 }
 document.addEventListener("click",e=>{ if(!$("helpPop").hidden&&!$("helpPop").contains(e.target)) togglePop(false); });
+
+/* ---------- Theme ---------- */
+function setTheme(t){
+  if(t==="system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme=t;
+  store.set("theme",t);
+  document.querySelectorAll("#theme button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.themeSet===t)));
+}
+document.querySelectorAll("#theme button").forEach(b=>b.onclick=()=>{ b.blur(); setTheme(b.dataset.themeSet); });
+setTheme(store.get("theme")||"system");
 
 /* ---------- MIDI ---------- */
 $("connect").onclick=async e=>{

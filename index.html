@@ -20,175 +20,241 @@
 <meta name="twitter:image" content="https://smallwood.osinachi.me/og.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: collapsible settings sidebar on the left, the score fills the rest of the screen under a slim "play" bar */
+/* Layout: pieces on the left, practice switches on the right, both collapsible; the score fills the middle under one slim play bar */
 :root{
-  --bg:#f3f4f6; --panel:#ffffff; --fg:#1b1e24; --muted:#6a707c; --line:#d9dce2;
-  --accent:#c2410c; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --paper:#fffdf8; --ink:none;
+  --bg:#f3f4f6; --panel:#ffffff; --raise:#eceef1; --fg:#1b1e24; --soft:#4a4f58; --muted:#6a707c; --line:#dfe2e6;
+  --accent:#c2410c; --on-accent:#ffffff; --ok:#15803d; --warn:#b45309; --bad:#b91c1c; --lh:#0369a1;
+  --paper:#fffdf8; --ink:none; --key:#ffffff; --keyline:#c9ccd2; --black:#1b1e24;
   --display:"Fraunces",Georgia,serif; --body:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
-  --side:288px;
+  --left:220px; --right:264px;
 }
 @media (prefers-color-scheme:dark){:root{
-  --bg:#14161a; --panel:#1d2026; --fg:#e8eaee; --muted:#9097a3; --line:#2f333b;
-  --accent:#fb923c; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --paper:#1f2227; --ink:invert(.78); color-scheme:dark}}
+  --bg:#131518; --panel:#131518; --raise:#1f2227; --fg:#e9eaec; --soft:#b4b8bf; --muted:#8e939c; --line:#262a30;
+  --accent:#fb923c; --on-accent:#1a1d21; --ok:#4ade80; --warn:#fbbf24; --bad:#f87171; --lh:#7dd3fc;
+  --paper:#1f2227; --ink:invert(.78); --key:#d9dbdf; --keyline:#131518; --black:#0b0c0e; color-scheme:dark}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html,body{height:100%}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--body);overflow:hidden}
-.app{display:grid;grid-template-columns:var(--side) minmax(0,1fr);position:fixed;inset:0}
-.app.collapsed{--side:52px}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 var(--body)}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{position:fixed;inset:0;display:grid;grid-template-columns:var(--left) minmax(0,1fr) var(--right)}
+.app.noleft{--left:0px} .app.noright{--right:0px}
+.noleft #left,.noright #right{display:none}
+#left{grid-column:1} main{grid-column:2;position:relative} #right{grid-column:3}
 
-/* ---- sidebar ---- */
-aside{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column}
-.side-head{display:flex;align-items:center;gap:10px;padding:14px 12px 14px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:2}
-.side-head img{width:24px;height:24px;flex:none}
-.side-head h1{font:600 19px/1.1 var(--display);margin:0;flex:1;white-space:nowrap}
-#toggleSide{padding:4px 9px;font-size:16px;line-height:1}
-.collapsed .side-head{flex-direction:column;padding:12px 0;gap:12px}
-.collapsed .side-head h1,.collapsed .side-body{display:none}
-.side-body{padding:6px 16px 20px;display:grid;gap:4px}
-.group{display:grid;gap:9px;padding:14px 0;border-bottom:1px solid var(--line)}
-.group:last-child{border-bottom:0}
-.group h2{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0}
-.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.row>select{flex:1;min-width:0}
+/* ---- left: pieces ---- */
+#left{border-right:1px solid var(--line);display:flex;flex-direction:column;padding:18px 12px 12px;min-width:0;overflow-y:auto;background:var(--panel)}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px}
+.brand img{width:22px;height:22px}
+.brand span{font:600 19px/1 var(--display)}
+.label{font-size:12px;color:var(--muted);padding:0 8px 8px}
+#pieces{display:flex;flex-direction:column;gap:2px}
+#pieces button{all:unset;box-sizing:border-box;display:block;padding:9px 10px;border-radius:8px;color:var(--soft);cursor:pointer}
+#pieces button:hover{background:var(--raise);color:var(--fg)}
+#pieces button[aria-current="true"]{background:var(--raise);color:var(--fg);font-weight:500}
+#pieces button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.grow{flex:1}
+.filelink{font-size:13px;color:var(--muted);padding:8px 10px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.filelink:hover{color:var(--fg)}
+.filelink input{position:absolute;opacity:0;width:1px;height:1px}
+.status{display:flex;align-items:center;gap:8px;padding:10px;border-top:1px solid var(--line);margin-top:6px;font-size:13px;color:var(--soft);flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.dot[data-s="ok"]{background:var(--ok)} .dot[data-s="warn"]{background:var(--warn)} .dot[data-s="bad"]{background:var(--bad)}
+#connect{border:0;background:var(--accent);color:var(--on-accent);border-radius:8px;padding:7px 12px;font-weight:500;cursor:pointer;width:100%}
 
-.pill{display:inline-flex;align-items:center;gap:8px;font-weight:500;font-size:13px}
-.dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none}
-[data-s="ok"] .dot,.dot[data-s="ok"]{background:var(--ok)} [data-s="warn"] .dot,.dot[data-s="warn"]{background:var(--warn)} [data-s="bad"] .dot,.dot[data-s="bad"]{background:var(--bad)}
-#miniDot{display:none}
-.collapsed #miniDot{display:block}
-
-button,select{font:500 13px var(--body);padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
-select option{background:var(--panel);color:var(--fg)}
-button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
-button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
-button:disabled{opacity:.45;cursor:default}
-button:focus-visible,select:focus-visible,.linkbtn:focus-within,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.linkbtn{color:var(--muted);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;justify-self:start}
-.linkbtn:hover{color:var(--fg)}
-.linkbtn input{position:absolute;opacity:0;width:1px;height:1px}
-label.check{display:flex;align-items:flex-start;gap:9px;cursor:pointer}
-label.check input{accent-color:var(--accent);width:16px;height:16px;margin:2px 0 0;cursor:pointer;flex:none}
-label.check small{display:block;color:var(--muted);font-size:12px;line-height:1.35}
-label.field{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px}
-#bpm{font:500 13px var(--mono);width:5em;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg)}
-.hint{color:var(--muted);font-size:12px}
-.btns{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.btns button{padding:7px 4px}
-.keys{display:grid;grid-template-columns:auto 1fr;gap:5px 10px;font-size:12px;color:var(--muted);align-items:center}
-kbd{font:500 11px var(--mono);padding:1px 5px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--fg);white-space:nowrap}
-
-/* ---- main: play bar + score ---- */
-main{display:flex;flex-direction:column;min-width:0;height:100%}
-.playbar{display:flex;align-items:center;flex-wrap:wrap;gap:6px 18px;padding:10px 20px;border-bottom:1px solid var(--line);background:var(--panel);min-height:58px}
-.playbar .k{font:500 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+/* ---- top play bar ---- */
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.playbar{min-height:64px;display:flex;align-items:center;gap:6px 18px;flex-wrap:wrap;padding:8px 12px 8px 12px;border-bottom:1px solid var(--line);position:relative}
+.ib{width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:0;background:transparent;color:var(--soft);cursor:pointer;padding:0;flex:none}
+.ib:hover{background:var(--raise);color:var(--fg)}
+.ib[aria-pressed="true"]{background:var(--accent);color:var(--on-accent)}
+.ib svg{width:18px;height:18px}
+.picker{display:none;align-items:center;position:relative}
+.noleft .picker{display:inline-flex}
+.picker select{appearance:none;-webkit-appearance:none;border:0;background:transparent;font-weight:500;font-size:15px;padding:8px 30px 8px 10px;border-radius:8px;cursor:pointer;max-width:220px}
+.picker select:hover{background:var(--raise)}
+.picker select option{background:var(--panel);color:var(--fg)}
+.picker svg{position:absolute;right:8px;width:16px;height:16px;pointer-events:none;color:var(--soft)}
 #expect{font:500 24px var(--mono);white-space:nowrap}
-#feedback{font:500 13px var(--mono);min-width:0;flex:1 1 220px}
+#expect .plus{color:var(--muted)}
+#feedback{font:500 13px var(--mono);flex:1 1 160px;min-width:0}
 #feedback.bad{color:var(--bad)} #feedback.ok{color:var(--ok)}
-.stats{display:flex;gap:16px;align-items:baseline;font-size:12px;color:var(--muted);flex-wrap:wrap}
-.stats b{font:500 15px var(--mono);color:var(--fg);font-variant-numeric:tabular-nums;margin-right:4px}
-#beat{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);flex:none}
-#beat.on{background:var(--muted);border-color:var(--muted)}
-#beat.down{background:var(--accent);border-color:var(--accent)}
-.scroll{flex:1;overflow:auto;padding:14px max(14px,env(safe-area-inset-right,0px)) 40px 14px}
-.sheet{background:var(--paper);border-radius:8px;padding:6px;min-height:100%;color:#1b1e24}
+.meta{display:flex;align-items:center;gap:16px;font-size:13px;color:var(--muted);white-space:nowrap}
+.meta b{font:500 13px var(--mono);color:var(--fg);font-variant-numeric:tabular-nums}
+#beat{width:12px;height:12px;border-radius:50%;background:var(--line);flex:none}
+#beat.on{background:var(--muted)} #beat.down{background:var(--accent)}
+.tools{display:flex;gap:2px}
+.pop{position:absolute;top:58px;right:12px;z-index:5;width:280px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.35);padding:14px 16px}
+.pop h3{margin:0 0 10px;font-size:12px;font-weight:500;color:var(--muted)}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:8px 12px;font-size:13px;align-items:center;color:var(--soft)}
+kbd{font:500 11px var(--mono);padding:1px 6px;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;color:var(--fg);white-space:nowrap}
+
+/* ---- score ---- */
+.scroll{flex:1;overflow:auto;padding:16px;min-height:0;position:relative}
+.sheet{background:var(--paper);border-radius:10px;padding:6px;min-height:100%;color:#1b1e24}
 .sheet svg{filter:var(--ink)}
 .sheet .empty{color:#6a707c;padding:80px 16px;text-align:center}
 .flash{animation:fl .35s}
 @keyframes fl{0%{box-shadow:0 0 0 3px var(--bad)}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.flash{animation:none}}
 
-/* ---- phones: sidebar becomes a top section ---- */
-@media (max-width:760px){
-  body{overflow:auto}
-  .app,.app.collapsed{grid-template-columns:1fr;grid-template-rows:auto 1fr;position:static;min-height:100%}
-  aside{border-right:0;border-bottom:1px solid var(--line);overflow:visible}
-  .collapsed .side-head{flex-direction:row;padding:12px 16px}
-  .collapsed .side-head h1{display:block}
-  main{height:auto}
+/* ---- right: practice switches ---- */
+#right{border-left:1px solid var(--line);padding:20px 18px;display:flex;flex-direction:column;gap:26px;overflow-y:auto;min-width:0;background:var(--panel)}
+#right section{display:flex;flex-direction:column;gap:14px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+label.row{cursor:pointer}
+.sw{appearance:none;-webkit-appearance:none;width:34px;height:20px;border-radius:999px;background:var(--line);position:relative;margin:0;cursor:pointer;flex:none;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.sw:checked{background:var(--accent)}
+.sw:checked::after{transform:translateX(14px);background:var(--on-accent)}
+@media (prefers-reduced-motion:reduce){.sw,.sw::after{transition:none}}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:var(--raise);border-radius:8px;padding:3px}
+.seg button{border:0;background:transparent;color:var(--soft);padding:7px 0;border-radius:6px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--panel);color:var(--fg);font-weight:500;box-shadow:0 1px 2px rgba(0,0,0,.15)}
+.stepper{display:flex;align-items:center;background:var(--raise);border-radius:8px}
+.stepper .ib{width:32px;height:32px}
+#bpm{width:44px;border:0;background:transparent;text-align:center;font:500 14px var(--mono);-moz-appearance:textfield;padding:0}
+#bpm::-webkit-outer-spin-button,#bpm::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.hint{font-size:12px;color:var(--muted)}
+
+/* mini piano: keys to press now */
+.piano{position:relative;height:56px}
+.piano .w{position:absolute;top:0;height:56px;background:var(--key);border:1px solid var(--keyline);border-radius:0 0 3px 3px}
+.piano .b{position:absolute;top:0;height:34px;background:var(--black);border-radius:0 0 2px 2px;z-index:1}
+.piano .rh{background:var(--accent)!important} .piano .lh{background:var(--lh)!important}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+
+/* ---- end-of-piece summary ---- */
+.summary{position:absolute;inset:0;border-radius:0;display:flex;align-items:center;justify-content:center;background:rgba(10,11,13,.55);padding:16px;z-index:4}
+.card{width:min(420px,100%);background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:24px;display:flex;flex-direction:column;gap:20px;box-shadow:0 24px 60px rgba(0,0,0,.4)}
+.card h2{margin:0;font:600 22px/1.2 var(--display)}
+.card .sub{color:var(--muted);font-size:13px;margin-top:4px}
+.nums{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.nums b{display:block;font:500 22px var(--mono);font-variant-numeric:tabular-nums}
+.nums span{font-size:12px;color:var(--muted)}
+.bars{display:flex;gap:3px;height:34px;align-items:flex-end}
+.bars i{flex:1;border-radius:2px;background:var(--ok);min-height:6px}
+.bars i.miss{background:var(--warn)} .bars i.bad{background:var(--bad)}
+.card .actions{display:flex;gap:8px}
+.card .actions button{flex:1;border:1px solid var(--line);background:transparent;border-radius:8px;padding:9px 12px;cursor:pointer;font-weight:500}
+.card .actions button.go{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+
+/* ---- phones: stack ---- */
+@media (max-width:820px){
+  .app{position:static;display:flex;flex-direction:column;min-height:100%}
+  #left,#right{border:0;border-bottom:1px solid var(--line);overflow:visible}
+  #left{padding:12px}
+  .brand{padding-bottom:10px}
+  #pieces{flex-direction:row;flex-wrap:wrap}
+  main{order:2} #right{order:3;border-top:1px solid var(--line)}
   .scroll{overflow:visible}
+  .summary{position:fixed}
 }
 </style>
 </head>
 <body>
 <div class="app" id="app">
-  <aside aria-label="Settings">
-    <div class="side-head">
-      <img src="/favicon.svg" alt="">
-      <h1>Smallwood</h1>
-      <span class="dot" id="miniDot" title="Keyboard status"></span>
-      <button id="toggleSide" aria-expanded="true" title="Hide settings ( [ )">&laquo;</button>
+  <nav id="left" aria-label="Pieces">
+    <div class="brand"><img src="/favicon.svg" alt=""><span>Smallwood</span></div>
+    <div class="label">Pieces</div>
+    <div id="pieces"></div>
+    <div class="grow"></div>
+    <label class="filelink">Open a file…<input type="file" id="file" accept=".mxl,.musicxml,.xml"></label>
+    <div class="status">
+      <span class="dot" id="dot" data-s="idle"></span><span id="pillText">No keyboard</span>
+      <button id="connect">Connect MIDI</button>
     </div>
-    <div class="side-body">
-      <section class="group">
-        <h2>Keyboard</h2>
-        <div class="row"><span class="pill" id="pill" data-s="idle"><span class="dot"></span><span id="pillText">Not connected</span></span></div>
-        <button id="connect" class="primary">Connect MIDI</button>
-      </section>
-
-      <section class="group">
-        <h2>Exercise</h2>
-        <div class="row"><select id="lib" aria-label="Exercise"><option value="">Choose an exercise…</option></select></div>
-        <label class="field" for="hand">Hands
-          <select id="hand" style="flex:1"><option value="both">Both</option><option value="rh">Right only</option><option value="lh">Left only</option></select>
-        </label>
-        <label class="check" for="fingers"><input type="checkbox" id="fingers" checked> Finger numbers</label>
-        <label class="linkbtn">Open a MusicXML file…<input type="file" id="file" accept=".mxl,.musicxml,.xml"></label>
-      </section>
-
-      <section class="group">
-        <h2>Practice</h2>
-        <div class="btns">
-          <button id="free" aria-pressed="false">Free play</button>
-          <button id="restart" disabled>Restart</button>
-          <button id="skip" disabled>Skip</button>
-        </div>
-        <label class="check" for="wrongRestart"><input type="checkbox" id="wrongRestart">
-          <span>Wrong note restarts bar<small>Go back to the start of the bar on any wrong note.</small></span></label>
-        <label class="check" for="perfect"><input type="checkbox" id="perfect">
-          <span>Perfect repeats<small>A repeated section with any mistake is played again, both times, before moving on.</small></span></label>
-      </section>
-
-      <section class="group">
-        <h2>Timing</h2>
-        <label class="check" for="strict"><input type="checkbox" id="strict">
-          <span>Strict timing<small>Your first note sets the beat. Off the beat sends you back to the start of the bar.</small></span></label>
-        <label class="field" for="bpm">&#9833; = <input type="number" id="bpm" min="20" max="240" step="1" value="80"> BPM <span class="hint" id="bpmHint"></span></label>
-        <div class="row" style="gap:18px">
-          <label class="check" for="click"><input type="checkbox" id="click" checked> Click</label>
-          <label class="check" for="pulse"><input type="checkbox" id="pulse" checked> Pulse</label>
-        </div>
-      </section>
-
-      <section class="group">
-        <h2>Shortcuts</h2>
-        <div class="keys">
-          <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd></span><span>previous / next bar</span>
-          <span><kbd>Shift</kbd>+<kbd>&larr;</kbd><kbd>&rarr;</kbd></span><span>one note step</span>
-          <span><kbd>Home</kbd></span><span>back to the start</span>
-          <span><kbd>R</kbd></span><span>restart</span>
-          <span><kbd>[</kbd></span><span>hide / show settings</span>
-        </div>
-      </section>
-    </div>
-  </aside>
+  </nav>
 
   <main>
     <div class="playbar" aria-label="Now playing">
-      <span class="k">Play</span><span id="expect">--</span>
+      <button class="ib" id="toggleLeft" aria-label="Show or hide pieces" title="Pieces ( [ )"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16"></path></svg></button>
+      <span class="picker"><select id="lib" aria-label="Piece"><option value="">Choose a piece</option></select><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"></path></svg></span>
+      <span id="expect">--</span>
       <span id="feedback" aria-live="polite"></span>
-      <span id="beat" aria-hidden="true"></span>
-      <div class="stats">
-        <span><b id="sBar">--</b></span>
-        <span><b id="sAcc">--</b>accuracy</span>
-        <span><b id="sWrong">0</b>wrong</span>
-        <span><b id="sSlips">0</b>replays</span>
-        <span><b id="sTime">0:00</b></span>
+      <span class="meta">
+        <span id="beat" aria-hidden="true"></span>
+        <span id="sBar">Bar <b>--</b></span>
+        <b id="sAcc">--</b>
+        <b id="sTime">0:00</b>
+      </span>
+      <span class="tools">
+        <button class="ib" id="restart" aria-label="Restart" title="Restart (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg></button>
+        <button class="ib" id="free" aria-pressed="false" aria-label="Free play" title="Free play: nothing is checked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></button>
+        <button class="ib" id="help" aria-expanded="false" aria-controls="helpPop" aria-label="Keyboard shortcuts" title="Shortcuts (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 4"></path><path d="M12 17h.01"></path></svg></button>
+        <button class="ib" id="toggleRight" aria-label="Show or hide practice settings" title="Settings ( ] )"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+      </span>
+      <div class="pop" id="helpPop" hidden>
+        <h3>Shortcuts</h3>
+        <div class="keys">
+          <span><kbd>&larr;</kbd> <kbd>&rarr;</kbd></span><span>Previous / next bar</span>
+          <span><kbd>Shift</kbd> + <kbd>&larr;</kbd><kbd>&rarr;</kbd></span><span>One note</span>
+          <span><kbd>Home</kbd></span><span>Back to the start</span>
+          <span><kbd>R</kbd></span><span>Restart</span>
+          <span><kbd>[</kbd> <kbd>]</kbd></span><span>Hide pieces / settings</span>
+          <span><kbd>?</kbd></span><span>This list</span>
+        </div>
       </div>
     </div>
     <div class="scroll" id="scroll">
-      <div class="sheet" id="sheet"><div class="empty">Pick an exercise in the sidebar, or open a MusicXML file.</div></div>
+      <div class="sheet" id="sheet"><div class="empty">Pick a piece to start.</div></div>
     </div>
+      <div class="summary" id="summary" hidden>
+        <div class="card" role="dialog" aria-labelledby="sumTitle">
+          <div><h2 id="sumTitle">Done</h2><div class="sub" id="sumSub"></div></div>
+          <div class="nums">
+            <div><b id="sumAcc">--</b><span>accuracy</span></div>
+            <div><b id="sumWrong">0</b><span>wrong notes</span></div>
+            <div><b id="sumSlips">0</b><span>replays</span></div>
+            <div><b id="sumTime">0:00</b><span>time</span></div>
+          </div>
+          <div>
+            <div class="hint" style="margin-bottom:6px">Mistakes per bar</div>
+            <div class="bars" id="sumBars"></div>
+          </div>
+          <div class="actions"><button id="again" class="go">Play again</button><button id="nextPiece">Next piece</button></div>
+        </div>
+      </div>
   </main>
+
+  <aside id="right" aria-label="Practice settings">
+    <section>
+      <div class="label" style="padding:0">Hands</div>
+      <div class="seg" role="group" aria-label="Hands" id="hands">
+        <button data-hand="lh" aria-pressed="false">Left</button>
+        <button data-hand="both" aria-pressed="true">Both</button>
+        <button data-hand="rh" aria-pressed="false">Right</button>
+      </div>
+      <input type="hidden" id="hand" value="both">
+      <label class="row">Finger numbers <input type="checkbox" class="sw" id="fingers" checked></label>
+    </section>
+    <section>
+      <div class="label" style="padding:0">On a mistake</div>
+      <label class="row">Restart the bar <input type="checkbox" class="sw" id="wrongRestart"></label>
+      <label class="row">Perfect repeats <input type="checkbox" class="sw" id="perfect"></label>
+    </section>
+    <section>
+      <div class="label" style="padding:0">Tempo</div>
+      <label class="row">Strict timing <input type="checkbox" class="sw" id="strict"></label>
+      <div class="row">
+        <span><label for="bpm">BPM</label> <span class="hint" id="bpmHint"></span></span>
+        <span class="stepper">
+          <button class="ib" id="slower" aria-label="Slower">&minus;</button>
+          <input type="number" id="bpm" min="20" max="240" step="1" value="80">
+          <button class="ib" id="faster" aria-label="Faster">+</button>
+        </span>
+      </div>
+      <label class="row">Metronome click <input type="checkbox" class="sw" id="click" checked></label>
+      <label class="row">Beat light <input type="checkbox" class="sw" id="pulse" checked></label>
+    </section>
+    <section>
+      <div class="label" style="padding:0">Keys to play</div>
+      <div class="piano" id="piano" aria-hidden="true"></div>
+      <div class="legend"><span><i style="background:var(--lh)"></i>Left hand</span><span><i style="background:var(--accent)"></i>Right hand</span></div>
+    </section>
+  </aside>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/opensheetmusicdisplay@2.1.3/build/opensheetmusicdisplay.min.js"></script>
@@ -209,17 +275,27 @@ let got=new Map();            // pitch -> press time, for notes of this step tha
 const TOGETHER_MS=250;        // chord notes must start within this window
 let right=0, wrong=0, slips=0, stepClean=true, startT=null, timer=null;
 
-/* ---------- Sidebar ---------- */
-function setSide(open){
-  $("app").classList.toggle("collapsed",!open);
-  $("toggleSide").setAttribute("aria-expanded",String(open));
-  $("toggleSide").innerHTML=open?"&laquo;":"&raquo;";
-  $("toggleSide").title=open?"Hide settings ( [ )":"Show settings ( [ )";
-  store.set("sideOpen",open?"1":"0");
-  if(osmd&&loaded) setTimeout(()=>{ try{ osmd.render(); if(!free&&idx<steps.length) moveCursorTo(steps[idx].pos); }catch(e){} },60);
+/* ---------- Sidebars ---------- */
+function rerender(){
+  if(!osmd||!loaded) return;
+  setTimeout(()=>{ try{ osmd.render(); if(!free&&idx<steps.length) moveCursorTo(steps[idx].pos); else osmd.cursor.hide(); }catch(e){} },40);
 }
-$("toggleSide").onclick=e=>{ e.currentTarget.blur(); setSide($("app").classList.contains("collapsed")); };
-if(store.get("sideOpen")==="0") setSide(false);
+function setBar(side,open){
+  $("app").classList.toggle(side==="left"?"noleft":"noright",!open);
+  $(side==="left"?"toggleLeft":"toggleRight").setAttribute("aria-pressed",String(!open));
+  store.set("bar_"+side,open?"1":"0"); rerender();
+}
+const isOpen=side=>!$("app").classList.contains(side==="left"?"noleft":"noright");
+$("toggleLeft").onclick=e=>{ e.currentTarget.blur(); setBar("left",!isOpen("left")); };
+$("toggleRight").onclick=e=>{ e.currentTarget.blur(); setBar("right",!isOpen("right")); };
+if(store.get("bar_left")==="0") setBar("left",false);
+if(store.get("bar_right")==="0") setBar("right",false);
+$("help").onclick=e=>{ e.stopPropagation(); togglePop(); };
+function togglePop(force){
+  const open=force!==undefined?force:$("helpPop").hidden;
+  $("helpPop").hidden=!open; $("help").setAttribute("aria-expanded",String(open));
+}
+document.addEventListener("click",e=>{ if(!$("helpPop").hidden&&!$("helpPop").contains(e.target)) togglePop(false); });
 
 /* ---------- MIDI ---------- */
 $("connect").onclick=async e=>{
@@ -232,8 +308,7 @@ $("connect").onclick=async e=>{
     hook(); a.onstatechange=hook;
   }catch(err){setPill("bad","MIDI access refused");}
 };
-function setPill(s,t){$("pill").dataset.s=s;$("miniDot").dataset.s=s;$("pillText").textContent=t;$("miniDot").title=t;
-  $("connect").classList.toggle("primary",s!=="ok");}
+function setPill(s,t){$("dot").dataset.s=s;$("pillText").textContent=t;$("connect").hidden=s==="ok";}
 function onMidi(e){
   const [st,n,v]=e.data, t=st&0xf0;
   if(t===0x90&&v>0) noteOn(n);
@@ -246,13 +321,19 @@ const LIBRARY=[
   {title:"Slow Air",file:"scores/slow-air.mxl"},
   {title:"March",file:"scores/march.mxl"},
 ];
-LIBRARY.forEach(x=>{const o=document.createElement("option");o.value=x.file;o.textContent=x.title;$("lib").appendChild(o);});
-$("lib").onchange=async e=>{ e.target.blur();
+LIBRARY.forEach(x=>{
+  const o=document.createElement("option");o.value=x.file;o.textContent=x.title;$("lib").appendChild(o);
+  const b=document.createElement("button");b.textContent=x.title;b.dataset.file=x.file;
+  b.onclick=()=>{ b.blur(); $("lib").value=x.file; $("lib").dispatchEvent(new Event("change")); };
+  $("pieces").appendChild(b);
+});
+function markPiece(){ document.querySelectorAll("#pieces button").forEach(b=>b.setAttribute("aria-current",String(b.dataset.file===$("lib").value))); }
+$("lib").onchange=async e=>{ e.target.blur(); markPiece();
   if(!e.target.value) return;
   try{ const r=await fetch(e.target.value); if(!r.ok) throw new Error(r.status); await loadScore(await r.blob()); }
   catch(err){ $("sheet").innerHTML='<div class="empty">Could not load that exercise. Check your connection and try again.</div>'; }
 };
-$("file").onchange=e=>{ const f=e.target.files[0]; if(f){ $("lib").value=""; loadScore(f); } };
+$("file").onchange=e=>{ const f=e.target.files[0]; if(f){ $("lib").value=""; markPiece(); pieceTitle=f.name.replace(/\.[^.]+$/,""); loadScore(f); } };
 // OSMD's drawFingerings option is not reliable, so remove fingerings from the XML itself when they are off.
 function stripFingerings(xml){ scoreBpm=detectBpm(xml); return $("fingers").checked ? xml : xml.replace(/<fingering\b[^>]*>[^<]*<\/fingering>/g,""); }
 // Tempo from the score: a metronome mark or <sound tempo>, else the tempo word.
@@ -266,15 +347,17 @@ function detectBpm(xml){
   return null;
 }
 let lastSource=null;
+let pieceTitle="";
 async function loadScore(f){
-  lastSource=f;
+  lastSource=f; hideSummary();
+  if($("lib").value) pieceTitle=$("lib").selectedOptions[0].textContent;
   $("sheet").innerHTML="";
-  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:true,drawPartNames:false,followCursor:true,backend:"svg",onXMLRead:stripFingerings});
+  osmd=new opensheetmusicdisplay.OpenSheetMusicDisplay($("sheet"),{autoResize:true,drawTitle:false,drawComposer:false,drawPartNames:false,followCursor:true,backend:"svg",onXMLRead:stripFingerings});
   try{
     await osmd.load(f);
     osmd.render();
     $("bpm").value=scoreBpm||80;
-    $("bpmHint").textContent=scoreBpm?`score: ${scoreBpm}`:"";
+    $("bpmHint").textContent=scoreBpm?`score ${scoreBpm}`:"";
     loaded=true; buildSteps(); if(free) $("free").click(); restart();
   }catch(err){
     $("sheet").innerHTML='<div class="empty">Could not read that file. Re-export it as MusicXML (.mxl) and try again.</div>';
@@ -292,9 +375,12 @@ $("fingers").onchange=async e=>{
     if(free) osmd.cursor.hide();
   }catch(err){ console.error(err); }
 };
-$("hand").onchange=e=>{ e.target.blur(); if(loaded){buildSteps();restart();} };
+document.querySelectorAll("#hands button").forEach(b=>b.onclick=()=>{
+  b.blur(); $("hand").value=b.dataset.hand;
+  document.querySelectorAll("#hands button").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+  if(loaded){buildSteps();restart();}
+});
 $("restart").onclick=e=>{ e.currentTarget.blur(); restart(); };
-$("skip").onclick=e=>{ e.currentTarget.blur(); if(!loaded||idx>=steps.length) return; stepClean=false; advance(); };
 
 function wanted(note){
   if(note.isRest()||note.IsGraceNote) return false;
@@ -313,10 +399,12 @@ function buildSteps(){
     const t=it.CurrentEnrolledTimestamp.RealValue;             // whole notes from the start, repeats unrolled
     const start=rnd(t-it.CurrentRelativeInMeasureTimestamp.RealValue);
     if(!occs.length||occs[occs.length-1].start!==start) occs.push({start,bar:it.CurrentMeasureIndex,pass:1});
-    const midis=new Set(c.NotesUnderCursor().filter(wanted).map(n=>n.halfTone+12));
-    if(midis.size) steps.push({pos,midis,bar:it.CurrentMeasureIndex,t,occ:occs.length-1});
+    const ns=c.NotesUnderCursor().filter(wanted), midis=new Set(ns.map(n=>n.halfTone+12));
+    const lh=new Set(ns.filter(n=>n.ParentStaff&&n.ParentStaff.idInMusicSheet===1).map(n=>n.halfTone+12));
+    if(midis.size) steps.push({pos,midis,lh,bar:it.CurrentMeasureIndex,t,occ:occs.length-1});
     c.next(); pos++;
   }
+  buildPiano();
   // A jump back in bar number marks the end of a repeated section.
   blocks=[];
   for(let k=1;k<occs.length;k++){
@@ -332,7 +420,7 @@ const firstStepOfOcc=o=>steps.findIndex(s=>s.occ===o);
 const curOcc=()=>idx<steps.length?steps[idx].occ:occs.length;
 const nMeasures=()=>occs.reduce((m,o)=>Math.max(m,o.bar+1),0);
 const blockOf=o=>blocks.find(b=>o>=b.a&&o<=b.b);
-function noteMistake(){ const b=blockOf(curOcc()); if(b) b.err++; }
+function noteMistake(){ const o=curOcc(); if(occs[o]) occs[o].miss=(occs[o].miss||0)+1; const b=blockOf(o); if(b) b.err++; }
 
 let curPos=0;
 function moveCursorTo(pos){
@@ -343,20 +431,21 @@ function restart(){
   idx=0; right=0; wrong=0; slips=0; got.clear(); stepClean=true; startT=null; clearInterval(timer); $("sTime").textContent="0:00";
   blocks.forEach(b=>b.err=0);
   stopTiming();
-  $("restart").disabled=false; $("skip").disabled=!steps.length;
+  hideSummary(); occs.forEach(o=>o.miss=0);
   if(!steps.length){ $("expect").textContent="--"; say("No notes found for this hand setting.","bad"); return; }
   moveCursorTo(steps[0].pos); showStep(); say("","");
 }
 function showStep(){
   const s=steps[idx], o=occs[s.occ];
-  $("expect").textContent=[...s.midis].sort((a,b)=>b-a).map(m=>got.has(m)?`(${nn(m)})`:nn(m)).join(" + ");
+  $("expect").innerHTML=[...s.midis].sort((a,b)=>b-a).map(m=>got.has(m)?`(${nn(m)})`:nn(m)).join(' <span class="plus">+</span> ');
+  lightKeys(s);
   const inBlock=blockOf(s.occ);
-  $("sBar").textContent=`Bar ${s.bar+1}/${nMeasures()}${inBlock?(o.pass===2?" (2nd time)":" (1st time)"):""}`;
+  $("sBar").innerHTML=`Bar <b>${s.bar+1}</b>/${nMeasures()}${inBlock?(o.pass===2?" · 2nd time":" · 1st time"):""}`;
   showStats();
 }
+function accText(){ const tot=right+wrong; return tot?Math.round(100*right/tot)+"%":"--"; }
 function showStats(){
-  $("sWrong").textContent=wrong; $("sSlips").textContent=slips;
-  const tot=right+wrong; $("sAcc").textContent=tot?Math.round(100*right/tot)+"%":"--";
+  $("sAcc").textContent=accText();
 }
 function flash(){ const p=$("sheet"); p.classList.remove("flash"); void p.offsetWidth; p.classList.add("flash"); }
 
@@ -367,7 +456,7 @@ $("free").onclick=e=>{
   if(free){
     if(startT) pausedMs=Date.now()-startT;
     clearInterval(timer); timer=null; stopTiming(); if(osmd&&loaded) osmd.cursor.hide();
-    $("expect").textContent="--"; say("Free play: nothing is checked.","");
+    $("expect").textContent="--"; lightKeys(null); say("Free play: nothing is checked.","");
   }else{
     if(startT){ startT=Date.now()-pausedMs; timer=setInterval(tick,500); }
     say("",""); if(loaded&&steps.length){ if(idx<steps.length) goToStep(idx); else restart(); }
@@ -429,8 +518,8 @@ function advance(){
   }
   if(idx>=steps.length){
     clearInterval(timer); osmd.cursor.hide(); stopTiming();
-    $("expect").textContent="Done"; showStats();
-    say(`Finished in ${$("sTime").textContent}. Press R to go again.`,"ok"); return;
+    $("expect").textContent="Done"; lightKeys(null); showStats(); say("","");
+    showSummary(); return;
   }
   const c=osmd.cursor; while(curPos<steps[idx].pos){ c.next(); curPos++; }
   say("",""); showStep();
@@ -510,7 +599,52 @@ function fireBeat(at,down){
     if(id==="strict"){ stopTiming(); if(loaded&&steps.length&&idx<steps.length){ goToStep(firstStepOfOcc(steps[idx].occ)); say(e.target.checked?"Strict timing on: your first note sets the beat.":"",""); } }
   });
 });
+function nudgeBpm(d){ const v=Math.max(20,Math.min(240,(+$("bpm").value||80)+d)); $("bpm").value=v; $("bpm").dispatchEvent(new Event("change")); }
+$("slower").onclick=e=>{ e.currentTarget.blur(); nudgeBpm(-4); };
+$("faster").onclick=e=>{ e.currentTarget.blur(); nudgeBpm(4); };
 $("bpm").addEventListener("change",e=>{ e.target.blur(); stopTiming(); if(loaded&&steps.length&&idx<steps.length) goToStep(firstStepOfOcc(steps[idx].occ)); });
+
+/* ---------- Mini piano ---------- */
+const BLACK=[1,3,6,8,10];
+let keyEls={};
+function buildPiano(){
+  const el=$("piano"); el.innerHTML=""; keyEls={};
+  let lo=127,hi=0; steps.forEach(s=>s.midis.forEach(m=>{lo=Math.min(lo,m);hi=Math.max(hi,m);}));
+  if(!steps.length){lo=48;hi=71;}
+  lo=Math.floor(lo/12)*12; hi=Math.ceil((hi+1)/12)*12-1;
+  const whites=[]; for(let m=lo;m<=hi;m++) if(!BLACK.includes(m%12)) whites.push(m);
+  const w=100/whites.length;
+  whites.forEach((m,i)=>{ const d=document.createElement("div"); d.className="w"; d.style.left=(i*w)+"%"; d.style.width=w+"%"; el.appendChild(d); keyEls[m]=d; });
+  for(let m=lo;m<=hi;m++) if(BLACK.includes(m%12)){
+    const i=whites.indexOf(m-1), d=document.createElement("div"); d.className="b";
+    d.style.left=((i+1)*w-w*0.3)+"%"; d.style.width=(w*0.6)+"%"; el.appendChild(d); keyEls[m]=d;
+  }
+}
+function lightKeys(s){
+  Object.values(keyEls).forEach(k=>k.classList.remove("lh","rh"));
+  if(!s) return;
+  s.midis.forEach(m=>{ const k=keyEls[m]; if(k) k.classList.add(s.lh.has(m)?"lh":"rh"); });
+}
+
+/* ---------- End-of-piece summary ---------- */
+function showSummary(){
+  $("sumTitle").textContent=pieceTitle||"Done";
+  $("sumSub").textContent=`Finished · ${{both:"both hands",lh:"left hand",rh:"right hand"}[$("hand").value]}${strictOn()?` · ${$("bpm").value} BPM, strict`:""}`;
+  $("sumAcc").textContent=accText(); $("sumWrong").textContent=wrong; $("sumSlips").textContent=slips; $("sumTime").textContent=$("sTime").textContent;
+  const bars=$("sumBars"); bars.innerHTML="";
+  const max=Math.max(1,...occs.map(o=>o.miss||0));
+  occs.forEach(o=>{ const i=document.createElement("i"), n=o.miss||0;
+    i.style.height=n?(30+70*n/max)+"%":"18%"; if(n) i.className=n>1?"bad":"miss";
+    i.title=`Bar ${o.bar+1}${o.pass===2?" (2nd time)":""}: ${n} mistake${n===1?"":"s"}`; bars.appendChild(i); });
+  $("summary").hidden=false; $("again").focus();
+}
+function hideSummary(){ $("summary").hidden=true; }
+$("again").onclick=()=>restart();
+$("nextPiece").onclick=()=>{
+  const opts=[...$("lib").options].filter(o=>o.value), i=opts.findIndex(o=>o.value===$("lib").value);
+  const nx=opts[(i+1)%opts.length]; if(!nx) return hideSummary();
+  $("lib").value=nx.value; $("lib").dispatchEvent(new Event("change"));
+};
 
 /* ---------- Navigation ---------- */
 function goToStep(i){
@@ -520,7 +654,10 @@ function goToStep(i){
 }
 document.addEventListener("keydown",e=>{
   const t=e.target.tagName, typing=t==="SELECT"||t==="INPUT";
-  if(e.key==="["&&!typing){ e.preventDefault(); setSide($("app").classList.contains("collapsed")); return; }
+  if(e.key==="Escape"){ togglePop(false); hideSummary(); return; }
+  if(!typing&&e.key==="["){ e.preventDefault(); setBar("left",!isOpen("left")); return; }
+  if(!typing&&e.key==="]"){ e.preventDefault(); setBar("right",!isOpen("right")); return; }
+  if(!typing&&e.key==="?"){ e.preventDefault(); togglePop(); return; }
   if(!loaded||!steps.length) return;
   if((e.key==="r"||e.key==="R")&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!typing){
     e.preventDefault(); if(free) $("free").click(); restart(); return;

@@ -188,6 +188,7 @@ label.row{cursor:pointer}
       </span>
       <span class="tools">
         <button class="ib" id="restart" aria-label="Restart" title="Restart (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path></svg></button>
+        <button class="ib" id="play" aria-pressed="false" aria-label="Play the piece" title="Play the piece (P)"><svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"></path></svg><svg id="stopIcon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" hidden><rect x="6" y="6" width="12" height="12" rx="1.5"></rect></svg></button>
         <button class="ib" id="free" aria-pressed="false" aria-label="Free play" title="Free play: nothing is checked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg></button>
         <button class="ib" id="help" aria-expanded="false" aria-controls="helpPop" aria-label="Keyboard shortcuts" title="Shortcuts (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9a2.5 2.5 0 0 1 5 0c0 1.7-2.5 2-2.5 4"></path><path d="M12 17h.01"></path></svg></button>
         <button class="ib" id="toggleRight" aria-label="Show or hide practice settings" title="Settings ( ] )"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
@@ -200,6 +201,7 @@ label.row{cursor:pointer}
           <span><kbd>Home</kbd></span><span>Back to the start</span>
           <span><kbd>R</kbd></span><span>Restart</span>
           <span><kbd>[</kbd> <kbd>]</kbd></span><span>Hide pieces / settings</span>
+          <span><kbd>P</kbd></span><span>Play / stop the piece</span>
           <span><kbd>?</kbd></span><span>This list</span>
         </div>
       </div>
@@ -262,6 +264,13 @@ label.row{cursor:pointer}
       </div>
       <label class="row">Metronome click <input type="checkbox" class="sw" id="click" checked></label>
       <label class="row">Beat light <input type="checkbox" class="sw" id="pulse" checked></label>
+    </section>
+    <section>
+      <div class="label" style="padding:0">Play the piece through</div>
+      <div class="seg" role="group" aria-label="Play the piece through" id="sound" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        <button data-sound="keyboard" aria-pressed="true">Keyboard</button>
+        <button data-sound="browser" aria-pressed="false">Browser</button>
+      </div>
     </section>
     <section>
       <div class="label" style="padding:0">Keys to play</div>
@@ -327,6 +336,7 @@ $("connect").onclick=async e=>{
   try{
     const a=await navigator.requestMIDIAccess();
     const hook=()=>{let n=0;a.inputs.forEach(i=>{n++;i.onmidimessage=onMidi;});
+      midiOut=null; a.outputs.forEach(o=>{ if(!midiOut&&o.state!=="disconnected") midiOut=o; });
       n?setPill("ok","Keyboard connected"):setPill("warn","No keyboard found");};
     hook(); a.onstatechange=hook;
   }catch(err){setPill("bad","MIDI access refused");}
@@ -372,6 +382,7 @@ function detectBpm(xml){
 let lastSource=null;
 let pieceTitle="";
 async function loadScore(f){
+  if(playing) stopPlayback(false);
   lastSource=f; hideSummary();
   if($("lib").value) pieceTitle=$("lib").selectedOptions[0].textContent;
   $("sheet").innerHTML="";
@@ -424,7 +435,8 @@ function buildSteps(){
     if(!occs.length||occs[occs.length-1].start!==start) occs.push({start,bar:it.CurrentMeasureIndex,pass:1});
     const ns=c.NotesUnderCursor().filter(wanted), midis=new Set(ns.map(n=>n.halfTone+12));
     const lh=new Set(ns.filter(n=>n.ParentStaff&&n.ParentStaff.idInMusicSheet===1).map(n=>n.halfTone+12));
-    if(midis.size) steps.push({pos,midis,lh,bar:it.CurrentMeasureIndex,t,occ:occs.length-1});
+    const len=new Map(); ns.forEach(n=>{ const m=n.halfTone+12; len.set(m,Math.max(len.get(m)||0,n.Length.RealValue)); });
+    if(midis.size) steps.push({pos,midis,lh,len,bar:it.CurrentMeasureIndex,t,occ:occs.length-1});
     c.next(); pos++;
   }
   buildPiano();
@@ -451,6 +463,7 @@ function moveCursorTo(pos){
 }
 function restart(){
   if(!loaded) return;
+  if(playing) stopPlayback(false);
   idx=0; right=0; wrong=0; slips=0; got.clear(); stepClean=true; startT=null; clearInterval(timer); $("sTime").textContent="0:00";
   blocks.forEach(b=>b.err=0);
   stopTiming();
@@ -488,6 +501,7 @@ $("free").onclick=e=>{
 
 /* ---------- Playing ---------- */
 function noteOn(m){
+  if(playing) return;
   if(free){ $("expect").textContent=nn(m); return; }
   if(!loaded||idx>=steps.length) return;
   if(!startT){startT=Date.now();timer=setInterval(tick,500);}
@@ -627,6 +641,85 @@ $("slower").onclick=e=>{ e.currentTarget.blur(); nudgeBpm(-4); };
 $("faster").onclick=e=>{ e.currentTarget.blur(); nudgeBpm(4); };
 $("bpm").addEventListener("change",e=>{ e.target.blur(); stopTiming(); if(loaded&&steps.length&&idx<steps.length) goToStep(firstStepOfOcc(steps[idx].occ)); });
 
+/* ---------- Play the piece ---------- */
+// Plays from the start of the bar under the cursor, following BPM, repeats and the Hands setting.
+// Sound goes to the keyboard over USB MIDI, or to a small browser synth.
+let midiOut=null, playing=null;
+const soundMode=()=>store.get("sound")||"keyboard";
+document.querySelectorAll("#sound button").forEach(b=>{
+  b.setAttribute("aria-pressed",String(b.dataset.sound===soundMode()));
+  b.onclick=()=>{ b.blur(); store.set("sound",b.dataset.sound);
+    document.querySelectorAll("#sound button").forEach(x=>x.setAttribute("aria-pressed",String(x===b))); };
+});
+$("play").onclick=e=>{ e.currentTarget.blur(); togglePlayback(); };
+function togglePlayback(){ playing?stopPlayback(true):startPlayback(); }
+function setPlayButton(on){
+  $("play").setAttribute("aria-pressed",String(on));
+  $("playIcon").hidden=on; $("stopIcon").hidden=!on;
+  $("play").title=on?"Stop (P)":"Play the piece (P)";
+}
+function startPlayback(){
+  if(!loaded||!steps.length) return;
+  if(free) $("free").click();
+  hideSummary(); stopTiming(); audio();
+  const from=idx<steps.length?firstStepOfOcc(steps[idx].occ):0;
+  let kb=soundMode()==="keyboard";
+  if(kb&&!midiOut){ kb=false; say("Keyboard not connected, playing through the browser.",""); } else say("Playing…","");
+  const wm=wholeMs(), start=performance.now()+350, t0=steps[from].t;
+  const ev=[]; let end=start;
+  for(let j=from;j<steps.length;j++){
+    const at=start+(steps[j].t-t0)*wm;
+    ev.push({at,kind:"step",j});
+    steps[j].len.forEach((L,m)=>{ const off=at+Math.max(60,L*wm*0.95); ev.push({at,kind:"on",m,off}); end=Math.max(end,off); });
+  }
+  if($("click").checked||$("pulse").checked){
+    for(let t=Math.ceil(rnd(t0/QUARTER))*QUARTER; start+(t-t0)*wm<end-30; t=rnd(t+QUARTER))
+      ev.push({at:start+(t-t0)*wm,kind:"beat",down:isDownbeat(t)});
+  }
+  ev.sort((a,b)=>a.at-b.at);
+  let bus=null;
+  if(!kb&&actx){ bus=actx.createGain(); bus.gain.value=0.5; bus.connect(actx.destination); }
+  playing={from,kb,ev,i:0,end,bus,sounding:new Set(),timeouts:[]};
+  setPlayButton(true);
+  playing.timer=setInterval(pump,25); pump();
+}
+function pump(){
+  const p=playing; if(!p) return;
+  const now=performance.now();
+  while(p.i<p.ev.length&&p.ev[p.i].at<now+150){
+    const e=p.ev[p.i++];
+    if(e.kind==="on"){
+      if(p.kb){ try{ midiOut.send([0x90,e.m,80],e.at); midiOut.send([0x80,e.m,0],e.off); }catch(err){} p.sounding.add(e.m); }
+      else if(p.bus) pianoVoice(e.m,e.at,e.off,p.bus);
+    }else if(e.kind==="beat"){ fireBeat(e.at,e.down); }
+    else if(e.kind==="step"){
+      p.timeouts.push(setTimeout(()=>{ if(playing!==p) return;
+        idx=e.j; const c=osmd.cursor; if(curPos>steps[idx].pos) moveCursorTo(steps[idx].pos); else { while(curPos<steps[idx].pos){ c.next(); curPos++; } c.show(); }
+        showStep(); },Math.max(0,e.at-now)));
+    }
+  }
+  if(p.i>=p.ev.length&&now>p.end+50) stopPlayback(true,true);
+}
+function pianoVoice(m,at,off,dest){
+  const a=actx; if(!a) return;
+  const t=a.currentTime+Math.max(0,at-performance.now())/1000, tOff=t+(off-at)/1000, f=440*Math.pow(2,(m-69)/12);
+  const g=a.createGain(); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.32,t+0.008); g.gain.exponentialRampToValueAtTime(0.12,t+0.35);
+  g.gain.setTargetAtTime(0.0001,tOff,0.06); g.connect(dest);
+  [[f,"triangle",1],[2*f,"sine",0.35],[3*f,"sine",0.12]].forEach(([fr,type,lv])=>{
+    const o=a.createOscillator(), og=a.createGain(); o.type=type; o.frequency.value=fr; og.gain.value=lv;
+    o.connect(og).connect(g); o.start(t); o.stop(tOff+0.5);
+  });
+}
+function stopPlayback(restore,finished){
+  const p=playing; if(!p) return;
+  playing=null; clearInterval(p.timer); p.timeouts.forEach(clearTimeout);
+  if(p.kb&&midiOut){ try{ if(midiOut.clear) midiOut.clear(); p.sounding.forEach(m=>midiOut.send([0x80,m,0])); midiOut.send([0xB0,123,0]); }catch(err){} }
+  if(p.bus){ try{ p.bus.gain.setTargetAtTime(0.0001,actx.currentTime,0.03); setTimeout(()=>p.bus.disconnect(),300); }catch(err){} }
+  $("beat").className=""; setPlayButton(false);
+  if(restore&&loaded&&steps.length){ goToStep(p.from); say(finished?"That's how it goes. Your turn.":"",""); }
+}
+
 /* ---------- Mini piano ---------- */
 const BLACK=[1,3,6,8,10];
 let keyEls={};
@@ -677,10 +770,12 @@ function goToStep(i){
 }
 document.addEventListener("keydown",e=>{
   const t=e.target.tagName, typing=t==="SELECT"||t==="INPUT";
-  if(e.key==="Escape"){ togglePop(false); hideSummary(); return; }
+  if(e.key==="Escape"){ togglePop(false); hideSummary(); if(playing) stopPlayback(true); return; }
   if(!typing&&e.key==="["){ e.preventDefault(); setBar("left",!isOpen("left")); return; }
   if(!typing&&e.key==="]"){ e.preventDefault(); setBar("right",!isOpen("right")); return; }
   if(!typing&&e.key==="?"){ e.preventDefault(); togglePop(); return; }
+  if(!typing&&(e.key==="p"||e.key==="P")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); togglePlayback(); return; }
+  if(playing&&!typing&&e.key.startsWith("Arrow")){ e.preventDefault(); return; }
   if(!loaded||!steps.length) return;
   if((e.key==="r"||e.key==="R")&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!typing){
     e.preventDefault(); if(free) $("free").click(); restart(); return;

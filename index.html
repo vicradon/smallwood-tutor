@@ -145,6 +145,25 @@ label.row{cursor:pointer}
 .bars i.miss{background:var(--warn)} .bars i.bad{background:var(--bad)}
 .card .actions{display:flex;gap:8px}
 .card .actions button{flex:1;border:1px solid var(--line);background:transparent;border-radius:8px;padding:9px 12px;cursor:pointer;font-weight:500}
+.card.wide{width:min(760px,100%);max-height:calc(100% - 32px)}
+.histhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.histhead .ib{margin:-6px -8px 0 0}
+.histtools{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.histtools select{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 10px}
+.histtools select option{background:var(--panel);color:var(--fg)}
+.tablewrap{overflow:auto;min-height:0;flex:1;border-top:1px solid var(--line)}
+.hist{width:100%;border-collapse:collapse;font-size:13px}
+.hist th{text-align:left;font-weight:500;color:var(--muted);padding:10px 8px;position:sticky;top:0;background:var(--panel);white-space:nowrap}
+.hist td{padding:9px 8px;border-top:1px solid var(--line);white-space:nowrap}
+.hist td.num,.hist th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.hist .best{color:var(--ok)}
+.empty-hist{color:var(--muted);padding:28px 0;text-align:center}
+.linkish{border:0;background:transparent;color:var(--muted);text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:4px 0;font-size:13px}
+.linkish:hover{color:var(--fg)} .linkish.danger{color:var(--bad)}
+.histbtn{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:8px;color:var(--soft);cursor:pointer;margin-bottom:2px}
+.histbtn:hover{background:var(--raise);color:var(--fg)}
+.histbtn:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.histbtn svg{width:16px;height:16px}
 .card .actions button.go{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
 
 /* ---- phones: stack ---- */
@@ -167,6 +186,7 @@ label.row{cursor:pointer}
     <div class="label">Pieces</div>
     <div id="pieces"></div>
     <div class="grow"></div>
+    <button class="histbtn" id="openHist" title="History (H)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l3 2"></path></svg>History</button>
     <label class="filelink">Open a file…<input type="file" id="file" accept=".mxl,.musicxml,.xml"></label>
     <div class="status">
       <span class="dot" id="dot" data-s="idle"></span><span id="pillText">No keyboard</span>
@@ -202,6 +222,7 @@ label.row{cursor:pointer}
           <span><kbd>R</kbd></span><span>Restart</span>
           <span><kbd>[</kbd> <kbd>]</kbd></span><span>Hide pieces / settings</span>
           <span><kbd>P</kbd></span><span>Play / stop the piece</span>
+          <span><kbd>H</kbd></span><span>Practice history</span>
           <span><kbd>?</kbd></span><span>This list</span>
         </div>
       </div>
@@ -223,6 +244,31 @@ label.row{cursor:pointer}
             <div class="bars" id="sumBars"></div>
           </div>
           <div class="actions"><button id="again" class="go">Play again</button><button id="nextPiece">Next piece</button></div>
+        </div>
+      </div>
+      <div class="summary" id="history" hidden>
+        <div class="card wide" role="dialog" aria-labelledby="histTitle">
+          <div class="histhead">
+            <div><h2 id="histTitle">History</h2><div class="sub">Finished runs, saved in this browser only.</div></div>
+            <button class="ib" id="closeHist" aria-label="Close history"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+          </div>
+          <div class="nums">
+            <div><b id="hStreak">0</b><span>day streak</span></div>
+            <div><b id="hWeek">0</b><span>runs in 7 days</span></div>
+            <div><b id="hTime">0:00</b><span>time in 7 days</span></div>
+            <div><b id="hTotal">0</b><span>runs in total</span></div>
+          </div>
+          <div class="histtools">
+            <select id="hFilter" aria-label="Filter by piece"><option value="">All pieces</option></select>
+            <span id="clearArea"><button class="linkish" id="clearHist">Clear history</button></span>
+          </div>
+          <div class="tablewrap">
+            <table class="hist">
+              <thead><tr><th>When</th><th>Piece</th><th>Hands</th><th class="num">BPM</th><th class="num">Accuracy</th><th class="num">Wrong</th><th class="num">Time</th></tr></thead>
+              <tbody id="hRows"></tbody>
+            </table>
+            <div class="empty-hist" id="hEmpty" hidden>No finished runs yet. Play a piece to the end and it shows up here.</div>
+          </div>
         </div>
       </div>
   </main>
@@ -744,8 +790,13 @@ function lightKeys(s){
 
 /* ---------- End-of-piece summary ---------- */
 function showSummary(){
+  const tot=right+wrong, acc=tot?Math.round(100*right/tot):0, hands=$("hand").value;
+  const prev=loadHist().filter(r=>r.piece===(pieceTitle||"Untitled")&&r.hands===hands);
+  const best=prev.length?Math.max(...prev.map(r=>r.acc)):null;
+  saveRun({at:Date.now(),piece:pieceTitle||"Untitled",hands,bpm:strictOn()?+$("bpm").value:null,acc,wrong,slips,
+    secs:startT?Math.floor((Date.now()-startT)/1000):0});
   $("sumTitle").textContent=pieceTitle||"Done";
-  $("sumSub").textContent=`Finished · ${{both:"both hands",lh:"left hand",rh:"right hand"}[$("hand").value]}${strictOn()?` · ${$("bpm").value} BPM, strict`:""}`;
+  $("sumSub").textContent=`Finished · ${HANDS[hands]}${strictOn()?` · ${$("bpm").value} BPM, strict`:""}${best===null?" · first run":acc>best?` · new best (was ${best}%)`:` · best ${best}%`}`;
   $("sumAcc").textContent=accText(); $("sumWrong").textContent=wrong; $("sumSlips").textContent=slips; $("sumTime").textContent=$("sTime").textContent;
   const bars=$("sumBars"); bars.innerHTML="";
   const max=Math.max(1,...occs.map(o=>o.miss||0));
@@ -755,6 +806,55 @@ function showSummary(){
   $("summary").hidden=false; $("again").focus();
 }
 function hideSummary(){ $("summary").hidden=true; }
+
+/* ---------- Practice history (this browser only) ---------- */
+const HANDS={both:"both hands",lh:"left hand",rh:"right hand"};
+function loadHist(){ try{ const v=JSON.parse(store.get("history")||"[]"); return Array.isArray(v)?v:[]; }catch(e){ return []; } }
+function saveRun(r){ const h=loadHist(); h.push(r); store.set("history",JSON.stringify(h.slice(-1000))); }
+const fmtSecs=s=>`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+const dayKey=ms=>{ const d=new Date(ms); return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+function streak(h){
+  const days=new Set(h.map(r=>dayKey(r.at))); let n=0, d=new Date(); d.setHours(12,0,0,0);
+  if(!days.has(dayKey(d.getTime()))) d.setDate(d.getDate()-1);      // a streak survives until today ends
+  while(days.has(dayKey(d.getTime()))){ n++; d.setDate(d.getDate()-1); }
+  return n;
+}
+function when(ms){
+  const d=new Date(ms), today=new Date(), y=new Date(); y.setDate(y.getDate()-1);
+  const t=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  if(dayKey(ms)===dayKey(today.getTime())) return `Today ${t}`;
+  if(dayKey(ms)===dayKey(y.getTime())) return `Yesterday ${t}`;
+  return d.toLocaleDateString([],{day:"numeric",month:"short"})+` ${t}`;
+}
+function renderHist(){
+  const h=loadHist(), week=Date.now()-7*864e5, recent=h.filter(r=>r.at>=week);
+  $("hStreak").textContent=streak(h); $("hWeek").textContent=recent.length;
+  $("hTime").textContent=fmtSecs(recent.reduce((a,r)=>a+(r.secs||0),0)); $("hTotal").textContent=h.length;
+  const f=$("hFilter"), keep=f.value, pieces=[...new Set(h.map(r=>r.piece))].sort();
+  f.innerHTML='<option value="">All pieces</option>'; pieces.forEach(p=>{ const o=document.createElement("option"); o.value=p; o.textContent=p; f.appendChild(o); });
+  f.value=pieces.includes(keep)?keep:"";
+  const rows=h.filter(r=>!f.value||r.piece===f.value).sort((a,b)=>b.at-a.at);
+  const bestOf={}; h.forEach(r=>{ const k=r.piece+"|"+r.hands; bestOf[k]=Math.max(bestOf[k]??-1,r.acc); });
+  const tb=$("hRows"); tb.innerHTML="";
+  rows.forEach(r=>{ const tr=document.createElement("tr");
+    const cells=[when(r.at),r.piece,HANDS[r.hands]||r.hands,r.bpm?String(r.bpm):"free",r.acc+"%",String(r.wrong),fmtSecs(r.secs||0)];
+    cells.forEach((c,i)=>{ const td=document.createElement("td"); td.textContent=c; if(i>=3) td.className="num";
+      if(i===4&&r.acc===bestOf[r.piece+"|"+r.hands]) td.classList.add("best"); tr.appendChild(td); });
+    tb.appendChild(tr); });
+  $("hEmpty").hidden=rows.length>0;
+  resetClear();
+}
+function openHist(){ hideSummary(); togglePop(false); renderHist(); $("history").hidden=false; $("closeHist").focus(); }
+function closeHist(){ $("history").hidden=true; }
+$("openHist").onclick=openHist; $("closeHist").onclick=closeHist;
+$("hFilter").onchange=e=>{ e.target.blur(); renderHist(); };
+$("history").addEventListener("click",e=>{ if(e.target===$("history")) closeHist(); });
+function resetClear(){ $("clearArea").innerHTML='<button class="linkish" id="clearHist">Clear history</button>'; $("clearHist").onclick=askClear; }
+function askClear(){
+  $("clearArea").innerHTML='<span class="hint">Delete every run?</span> <button class="linkish danger" id="clearYes">Delete</button> <button class="linkish" id="clearNo">Keep</button>';
+  $("clearYes").onclick=()=>{ store.set("history","[]"); renderHist(); };
+  $("clearNo").onclick=resetClear;
+}
 $("again").onclick=()=>restart();
 $("nextPiece").onclick=()=>{
   const opts=[...$("lib").options].filter(o=>o.value), i=opts.findIndex(o=>o.value===$("lib").value);
@@ -770,10 +870,11 @@ function goToStep(i){
 }
 document.addEventListener("keydown",e=>{
   const t=e.target.tagName, typing=t==="SELECT"||t==="INPUT";
-  if(e.key==="Escape"){ togglePop(false); hideSummary(); if(playing) stopPlayback(true); return; }
+  if(e.key==="Escape"){ togglePop(false); hideSummary(); closeHist(); if(playing) stopPlayback(true); return; }
   if(!typing&&e.key==="["){ e.preventDefault(); setBar("left",!isOpen("left")); return; }
   if(!typing&&e.key==="]"){ e.preventDefault(); setBar("right",!isOpen("right")); return; }
   if(!typing&&e.key==="?"){ e.preventDefault(); togglePop(); return; }
+  if(!typing&&(e.key==="h"||e.key==="H")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); $("history").hidden?openHist():closeHist(); return; }
   if(!typing&&(e.key==="p"||e.key==="P")&&!e.ctrlKey&&!e.metaKey&&!e.altKey){ e.preventDefault(); togglePlayback(); return; }
   if(playing&&!typing&&e.key.startsWith("Arrow")){ e.preventDefault(); return; }
   if(!loaded||!steps.length) return;
